@@ -1,5 +1,10 @@
 #!/bin/bash
 
+#Run script and itll output all namespaces in the cluster
+#Select Namespace
+#Optional: Select a container or hit enter to grab all
+
+
 # Function to display usage
 usage() {
     echo "Usage: $0"

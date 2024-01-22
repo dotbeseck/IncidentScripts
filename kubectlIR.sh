@@ -2,60 +2,73 @@
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 <pod-name> [container-name]"
-    echo "       pod-name: Name of the Kubernetes Pod"
-    echo "       container-name: Optional, name of a specific container in the Pod"
+    echo "Usage: $0 [container-name]"
+    echo "       container-name: Optional, name of a specific container in any Pod within the selected Namespace"
 }
 
-# Check minimum argument requirement
-if [ "$#" -lt 1 ]; then
-    usage
+echo "Incident Response Script for Kubernetes"
+echo "======================================="
+
+# List all namespaces
+ echo "Available Namespaces:"
+kubectl get namespaces -o jsonpath="{.items[*].metadata.name}" | tr ' ' '\n'
+echo ""
+
+# Prompt user to select a namespace
+read -p "Enter the Namespace to set the context: " NAMESPACE
+
+# Check if the namespace exists
+if ! kubectl get namespace "$NAMESPACE" &> /dev/null; then
+    echo "Error: Namespace $NAMESPACE does not exist."
     exit 1
 fi
 
-POD_NAME=$1
-CONTAINER_NAME=$2
+# Check for container name argument
+CONTAINER_NAME=$1
 
-echo "Incident Response Script for Kubernetes Pod"
-echo "============================================"
-echo "Gathering details for Pod: $POD_NAME"
+# List all Pods and their containers in the namespace
+echo "Listing all Pods and their Containers in Namespace: $NAMESPACE"
+echo "--------------------------------------------------------------"
+kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .spec.containers[*]}  - {.name}{"\n"}{end}{end}'
 echo ""
 
-# Check if the pod exists
-if ! kubectl get pod "$POD_NAME" &> /dev/null; then
-    echo "Error: Pod $POD_NAME does not exist in the current context."
-    exit 2
-fi
+# If a specific container is provided, gather details for that container
+if [ -n "$CONTAINER_NAME" ]; then
+    echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
+    echo "------------------------------------------------------------------------"
+    
+    # Finding all pods containing the specified container
+    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[?(@.spec.containers[*].name=='$CONTAINER_NAME')].metadata.name}")
 
-# Get Pod Description
-echo "1. Pod Description"
-echo "------------------"
-kubectl describe pod "$POD_NAME"
-echo ""
+    # Check if any pods were found
+    if [ -z "$PODS" ]; then
+        echo "Error: No Pods found with Container $CONTAINER_NAME in Namespace $NAMESPACE."
+        exit 2
+    fi
 
-# Get Pod Logs (and for specific container if provided)
-echo "2. Pod Logs"
-echo "-----------"
-if [ -z "$CONTAINER_NAME" ]; then
-    kubectl logs "$POD_NAME"
+    for POD in $PODS; do
+        echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
+
+        # Get Pod Description
+        echo "1. Pod Description for $POD"
+        echo "----------------------------"
+        kubectl describe pod "$POD" --namespace "$NAMESPACE"
+        echo ""
+
+        # Get Container Logs
+        echo "2. Logs for Container $CONTAINER_NAME in Pod $POD"
+        echo "--------------------------------------------------"
+        kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE"
+        echo ""
+
+        # Get Events related to the Container
+        echo "3. Events related to Container $CONTAINER_NAME in Pod $POD"
+        echo "---------------------------------------------------------"
+        kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod,involvedObject.fieldPath="spec.containers{$CONTAINER_NAME}"
+        echo ""
+    done
 else
-    echo "Fetching logs for container: $CONTAINER_NAME"
-    kubectl logs "$POD_NAME" -c "$CONTAINER_NAME"
+    echo "No specific container specified. Listing completed for all Pods and Containers in Namespace $NAMESPACE."
 fi
-echo ""
-
-# Get Pod Status
-echo "3. Pod Status"
-echo "-------------"
-kubectl get pod "$POD_NAME" -o wide
-echo ""
-
-# Get Events related to the Pod (and for specific container if provided)
-echo "4. Related Events"
-echo "-----------------"
-selector="involvedObject.name=$POD_NAME"
-[ -n "$CONTAINER_NAME" ] && selector="$selector,involvedObject.fieldPath=spec.containers{$CONTAINER_NAME}"
-kubectl get events --field-selector "$selector"
-echo ""
 
 echo "Incident response data collection complete."

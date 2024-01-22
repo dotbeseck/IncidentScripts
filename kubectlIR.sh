@@ -31,23 +31,12 @@ echo ""
 # Prompt user to select a container or press enter to list all
 read -p "Enter the Container name to gather details or press Enter to list all: " CONTAINER_NAME
 
-# If a specific container is provided
+# Process pods and containers based on the user input
 if [ -n "$CONTAINER_NAME" ]; then
     echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
     echo "------------------------------------------------------------------------"
     
-    # Finding all pods containing the specified container
-    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[?(@.spec.containers[*].name=='$CONTAINER_NAME')].metadata.name}")
-
-    # Check if any pods were found
-    if [ -z "$PODS" ]; then
-        echo "Error: No Pods found with Container $CONTAINER_NAME in Namespace $NAMESPACE."
-        exit 2
-    fi
-
-    for POD in $PODS; do
-        processPod "$POD" "$NAMESPACE" "$CONTAINER_NAME"
-    done
+    processContainers "$NAMESPACE" "$CONTAINER_NAME"
 else
     echo "Listing details for all Containers in Namespace $NAMESPACE."
     echo "-----------------------------------------------------------"
@@ -71,6 +60,12 @@ processPod() {
 
     echo "Fetching details for Pod: $POD, Container: $CONTAINER"
 
+    # Check if the container exists in the pod
+    if ! kubectl get pod "$POD" --namespace "$NAMESPACE" -o=jsonpath="{.spec.containers[?(@.name=='$CONTAINER')].name}" &> /dev/null; then
+        echo "Warning: Container $CONTAINER not found in Pod $POD. Skipping."
+        return
+    fi
+
     # Get Pod Description
     echo "1. Pod Description for $POD"
     echo "----------------------------"
@@ -88,4 +83,15 @@ processPod() {
     echo "---------------------------------------------------------"
     kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod,involvedObject.fieldPath="spec.containers{$CONTAINER}"
     echo ""
+}
+
+# Function to process containers in all pods for a given namespace and container name
+processContainers() {
+    local NAMESPACE=$1
+    local CONTAINER=$2
+    local PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{.items[*].metadata.name}')
+
+    for POD in $PODS; do
+        processPod "$POD" "$NAMESPACE" "$CONTAINER"
+    done
 }

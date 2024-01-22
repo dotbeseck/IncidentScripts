@@ -1,9 +1,6 @@
 #!/bin/bash
 
-#Run script and itll output all namespaces in the cluster
-#Select Namespace
-#Optional: Select a container or hit enter to grab all
-
+# Function to display usage
 usage() {
     echo "Usage: $0"
     echo "       The script will prompt for Namespace and Container selection."
@@ -26,42 +23,54 @@ if ! kubectl get namespace "$NAMESPACE" &> /dev/null; then
     exit 1
 fi
 
-# List all containers in the namespace
-echo "Listing Pods and their Containers in Namespace $NAMESPACE:"
-kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{range .items[*]}{.metadata.name}{":\n"}{range .spec.containers[*]}  - {.name}{"\n"}{end}{end}'
+# Gathering information from the namespace
+echo "Gathering information from Namespace: $NAMESPACE"
+echo "------------------------------------------------"
+
+# List Pods and Containers
+echo "1. Pods and their Containers:"
+kubectl get pods --namespace "$NAMESPACE" -o wide 2> /dev/null || echo "Error: Failed to get pods."
 echo ""
 
-# Prompt user to select a container or press enter to list all
-read -p "Enter the Container name to gather details or press Enter to list all: " CONTAINER_NAME
+# Node details
+echo "2. Node Details:"
+kubectl get nodes -o wide 2> /dev/null || echo "Error: Failed to get node details."
+echo ""
 
-# Process pods and containers based on the user input
-if [ -n "$CONTAINER_NAME" ]; then
-    echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
-    echo "------------------------------------------------------------------------"
-    
-    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
+# Pod CPU and Memory usage
+echo "3. Pod CPU and Memory Usage:"
+kubectl top pod --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get pod resource usage."
+echo ""
 
-    for POD in $PODS; do
-        echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
-        kubectl describe pod "$POD" --namespace "$NAMESPACE"
+# Services in the namespace
+echo "4. Services in Namespace:"
+kubectl get services --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get services."
+echo ""
 
-        # Attempt to get logs and handle error if container does not exist in this pod
-        if ! kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE" &> /dev/null; then
-            echo "Warning: Could not fetch logs for Container $CONTAINER_NAME in Pod $POD. It might not exist in this pod."
-        fi
+# ConfigMaps in the namespace
+echo "5. ConfigMaps in Namespace:"
+kubectl get configmap --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get ConfigMaps."
+echo ""
 
-        kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod
-    done
-else
-    echo "Listing details for all Pods and Containers in Namespace $NAMESPACE."
-    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
+# Secrets in the namespace
+echo "6. Secrets in Namespace:"
+kubectl get secrets --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get secrets."
+echo ""
 
-    for POD in $PODS; do
-        echo "Fetching details for Pod: $POD"
-        kubectl describe pod "$POD" --namespace "$NAMESPACE"
-        kubectl logs "$POD" --namespace "$NAMESPACE" --all-containers=true
-        kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod
-    done
-fi
+# Deployments in the namespace
+echo "7. Deployments in Namespace:"
+kubectl get deployments --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get deployments."
+echo ""
 
-echo "Incident response data collection complete."
+# StatefulSets in the namespace
+echo "8. StatefulSets in Namespace:"
+kubectl get statefulsets --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get StatefulSets."
+echo ""
+
+# Resource Quota and Limits
+echo "9. Resource Quotas and Limits in Namespace:"
+kubectl describe quota --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get resource quota."
+kubectl describe limitrange --namespace "$NAMESPACE" 2> /dev/null || echo "Error: Failed to get limit range."
+echo ""
+
+echo "Incident response data collection complete for Namespace: $NAMESPACE."

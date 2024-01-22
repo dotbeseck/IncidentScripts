@@ -27,11 +27,11 @@ fi
 echo "Gathering general information from Namespace: $NAMESPACE"
 echo "-------------------------------------------------------"
 
-# ... [Include here the general information gathering commands as above]
+# ... [Include here the general information gathering commands]
 
 # List all containers in the namespace
 echo "Containers in Namespace $NAMESPACE:"
-kubectl get pods --namespace "$NAMESPACE" -o custom-columns="POD:.metadata.name,CONTAINERS:.spec.containers[*].name" 2> /dev/null || echo "Error: Failed to get container details."
+kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{range .items[*]}{.metadata.name}{":\n"}{range .spec.containers[*]}  - {.name}{"\n"}{end}{end}' 2> /dev/null || echo "Error: Failed to get container details."
 echo ""
 
 # Prompt user to select a container or press enter to list all

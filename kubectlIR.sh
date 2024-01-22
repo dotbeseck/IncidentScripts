@@ -1,5 +1,49 @@
 #!/bin/bash
 
+# Function to process each pod and container
+processPod() {
+    local POD=$1
+    local NAMESPACE=$2
+    local CONTAINER=$3
+
+    echo "Fetching details for Pod: $POD, Container: $CONTAINER"
+
+    # Check if the container exists in the pod
+    if ! kubectl get pod "$POD" --namespace "$NAMESPACE" -o=jsonpath="{.spec.containers[?(@.name=='$CONTAINER')].name}" &> /dev/null; then
+        echo "Warning: Container $CONTAINER not found in Pod $POD. Skipping."
+        return
+    fi
+
+    # Get Pod Description
+    echo "1. Pod Description for $POD"
+    echo "----------------------------"
+    kubectl describe pod "$POD" --namespace "$NAMESPACE"
+    echo ""
+
+    # Get Container Logs
+    echo "2. Logs for Container $CONTAINER in Pod $POD"
+    echo "--------------------------------------------------"
+    kubectl logs "$POD" -c "$CONTAINER" --namespace "$NAMESPACE"
+    echo ""
+
+    # Get Events related to the Container
+    echo "3. Events related to Container $CONTAINER in Pod $POD"
+    echo "---------------------------------------------------------"
+    kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod,involvedObject.fieldPath="spec.containers{$CONTAINER}"
+    echo ""
+}
+
+# Function to process containers in all pods for a given namespace and container name
+processContainers() {
+    local NAMESPACE=$1
+    local CONTAINER=$2
+    local PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{.items[*].metadata.name}')
+
+    for POD in $PODS; do
+        processPod "$POD" "$NAMESPACE" "$CONTAINER"
+    done
+}
+
 # Function to display usage
 usage() {
     echo "Usage: $0"
@@ -51,47 +95,3 @@ else
 fi
 
 echo "Incident response data collection complete."
-
-# Function to process each pod and container
-processPod() {
-    local POD=$1
-    local NAMESPACE=$2
-    local CONTAINER=$3
-
-    echo "Fetching details for Pod: $POD, Container: $CONTAINER"
-
-    # Check if the container exists in the pod
-    if ! kubectl get pod "$POD" --namespace "$NAMESPACE" -o=jsonpath="{.spec.containers[?(@.name=='$CONTAINER')].name}" &> /dev/null; then
-        echo "Warning: Container $CONTAINER not found in Pod $POD. Skipping."
-        return
-    fi
-
-    # Get Pod Description
-    echo "1. Pod Description for $POD"
-    echo "----------------------------"
-    kubectl describe pod "$POD" --namespace "$NAMESPACE"
-    echo ""
-
-    # Get Container Logs
-    echo "2. Logs for Container $CONTAINER in Pod $POD"
-    echo "--------------------------------------------------"
-    kubectl logs "$POD" -c "$CONTAINER" --namespace "$NAMESPACE"
-    echo ""
-
-    # Get Events related to the Container
-    echo "3. Events related to Container $CONTAINER in Pod $POD"
-    echo "---------------------------------------------------------"
-    kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod,involvedObject.fieldPath="spec.containers{$CONTAINER}"
-    echo ""
-}
-
-# Function to process containers in all pods for a given namespace and container name
-processContainers() {
-    local NAMESPACE=$1
-    local CONTAINER=$2
-    local PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{.items[*].metadata.name}')
-
-    for POD in $PODS; do
-        processPod "$POD" "$NAMESPACE" "$CONTAINER"
-    done
-}

@@ -39,13 +39,15 @@ if [ -n "$CONTAINER_NAME" ]; then
     PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
 
     for POD in $PODS; do
-        # Check if the container exists in the pod using grep
-        if kubectl get pod "$POD" --namespace "$NAMESPACE" -o jsonpath="{.spec.containers[*].name}" | grep -q "$CONTAINER_NAME"; then
-            echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
-            kubectl describe pod "$POD" --namespace "$NAMESPACE"
-            kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE"
-            kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod,involvedObject.fieldPath="spec.containers{$CONTAINER_NAME}"
+        echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
+        kubectl describe pod "$POD" --namespace "$NAMESPACE"
+
+        # Attempt to get logs and handle error if container does not exist in this pod
+        if ! kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE" &> /dev/null; then
+            echo "Warning: Could not fetch logs for Container $CONTAINER_NAME in Pod $POD. It might not exist in this pod."
         fi
+
+        kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod
     done
 else
     echo "Listing details for all Pods and Containers in Namespace $NAMESPACE."

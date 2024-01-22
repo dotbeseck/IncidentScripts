@@ -33,17 +33,6 @@ processPod() {
     echo ""
 }
 
-# Function to process containers in all pods for a given namespace and container name
-processContainers() {
-    local NAMESPACE=$1
-    local CONTAINER=$2
-    local PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{.items[*].metadata.name}')
-
-    for POD in $PODS; do
-        processPod "$POD" "$NAMESPACE" "$CONTAINER"
-    done
-}
-
 # Function to display usage
 usage() {
     echo "Usage: $0"
@@ -80,7 +69,12 @@ if [ -n "$CONTAINER_NAME" ]; then
     echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
     echo "------------------------------------------------------------------------"
     
-    processContainers "$NAMESPACE" "$CONTAINER_NAME"
+    # Finding all pods containing the specified container
+    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[?(@.spec.containers[*].name=='$CONTAINER_NAME')].metadata.name}")
+
+    for POD in $PODS; do
+        processPod "$POD" "$NAMESPACE" "$CONTAINER_NAME"
+    done
 else
     echo "Listing details for all Containers in Namespace $NAMESPACE."
     echo "-----------------------------------------------------------"

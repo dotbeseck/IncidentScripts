@@ -4,8 +4,6 @@
 #Select Namespace
 #Optional: Select a container or hit enter to grab all
 
-
-# Function to display usage
 usage() {
     echo "Usage: $0"
     echo "       The script will prompt for Namespace and Container selection."

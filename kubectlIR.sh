@@ -31,7 +31,7 @@ echo "-------------------------------------------------------"
 
 # List all containers in the namespace
 echo "Containers in Namespace $NAMESPACE:"
-kubectl get pods --namespace "$NAMESPACE" -o=jsonpath='{range .items[*]}{.metadata.name}{":\n"}{range .spec.containers[*]}  - {.name}{"\n"}{end}{end}'
+kubectl get pods --namespace "$NAMESPACE" -o custom-columns="POD:.metadata.name,CONTAINERS:.spec.containers[*].name" 2> /dev/null || echo "Error: Failed to get container details."
 echo ""
 
 # Prompt user to select a container or press enter to list all
@@ -42,22 +42,19 @@ if [ -n "$CONTAINER_NAME" ]; then
     echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
     echo "------------------------------------------------------------------------"
     
-    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
+    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o jsonpath="{.items[*].metadata.name}")
 
     for POD in $PODS; do
-        # Attempt to get logs for specified container and handle error if it does not exist in this pod
         if kubectl get pod "$POD" --namespace "$NAMESPACE" -o jsonpath="{.spec.containers[?(@.name=='$CONTAINER_NAME')].name}" &> /dev/null; then
             echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
             kubectl describe pod "$POD" --namespace "$NAMESPACE"
             kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE"
             kubectl get events --namespace "$NAMESPACE" --field-selector involvedObject.name="$POD",involvedObject.kind=Pod
-        else
-            echo "Warning: Container $CONTAINER_NAME not found in Pod $POD."
         fi
     done
 else
     echo "Listing details for all Containers in Namespace: $NAMESPACE."
-    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
+    PODS=$(kubectl get pods --namespace "$NAMESPACE" -o jsonpath="{.items[*].metadata.name}")
 
     for POD in $PODS; do
         echo "Fetching details for Pod: $POD"

@@ -36,14 +36,11 @@ if [ -n "$CONTAINER_NAME" ]; then
     echo "Gathering details for Container: $CONTAINER_NAME in Namespace: $NAMESPACE"
     echo "------------------------------------------------------------------------"
     
-    # Iterate over all pods and check each container
     PODS=$(kubectl get pods --namespace "$NAMESPACE" -o=jsonpath="{.items[*].metadata.name}")
 
     for POD in $PODS; do
-        # Check if the container exists in the pod
-        CONTAINER_EXISTS=$(kubectl get pod "$POD" --namespace "$NAMESPACE" -o=jsonpath="{.spec.containers[?(@.name=='$CONTAINER_NAME')].name}")
-
-        if [ -n "$CONTAINER_EXISTS" ]; then
+        # Check if the container exists in the pod using grep
+        if kubectl get pod "$POD" --namespace "$NAMESPACE" -o jsonpath="{.spec.containers[*].name}" | grep -q "$CONTAINER_NAME"; then
             echo "Fetching details for Pod: $POD, Container: $CONTAINER_NAME"
             kubectl describe pod "$POD" --namespace "$NAMESPACE"
             kubectl logs "$POD" -c "$CONTAINER_NAME" --namespace "$NAMESPACE"

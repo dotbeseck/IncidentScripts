@@ -1,0 +1,5 @@
+sudo qemu-img convert -f vpc -O raw ~/Downloads/COPYOFexport-ami.vhd SOMETHING.img
+sudo losetup -f -P ~/SOMETHING.img
+sudo e2fsck -f /dev/loop3p1
+sudo resize2fs /dev/loop3p1
+sudo mount /dev/loop3p1 /mnt/mountt/

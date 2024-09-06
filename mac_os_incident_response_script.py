@@ -2,16 +2,18 @@ import subprocess
 import os
 import json
 from datetime import datetime, timedelta
-from tqdm import tqdm
 
 def run_command(command):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, shell=True)
+        result = subprocess.run(command, capture_output=True, text=True, shell=True, timeout=60)
         return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return "Command timed out after 60 seconds"
     except Exception as e:
         return f"Error running command: {e}"
 
 def collect_system_info():
+    print("Collecting system information...")
     return {
         "hostname": run_command("hostname"),
         "os_version": run_command("sw_vers -productVersion"),
@@ -21,6 +23,7 @@ def collect_system_info():
     }
 
 def collect_network_info():
+    print("Collecting network information...")
     return {
         "ip_addresses": run_command("ifconfig | grep inet | grep -v inet6"),
         "routing_table": run_command("netstat -rn"),
@@ -29,37 +32,39 @@ def collect_network_info():
     }
 
 def collect_process_info():
+    print("Collecting process information...")
     return {
         "running_processes": run_command("ps aux"),
         "listening_ports": run_command("lsof -i -P | grep LISTEN"),
     }
 
 def collect_user_info():
+    print("Collecting user information...")
     return {
         "user_accounts": run_command("dscl . list /Users | grep -v '^_'"),
         "sudo_users": run_command("cat /etc/sudoers | grep -v '^#' | grep -v '^$'"),
-        "login_history": run_command("last"),
+        "login_history": run_command("last -10"),  # Limit to last 10 entries for speed
     }
 
 def collect_file_system_info():
+    print("Collecting file system information...")
     return {
         "disk_usage": run_command("df -h"),
         "mounted_volumes": run_command("mount"),
-        # Removed recent files collection to avoid permission prompts
     }
 
 def collect_security_info():
+    print("Collecting security information...")
     return {
         "firewall_status": run_command("sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate"),
         "system_integrity_protection": run_command("csrutil status"),
         "gatekeeper_status": run_command("spctl --status"),
         "filevault_status": run_command("fdesetup status"),
         "software_updates": run_command("softwareupdate --list"),
-        "xprotect_version": run_command("system_profiler SPInstallHistoryDataType | grep -A 4 XProtectPlistConfigData"),
-        # Removed or modified commands that might trigger permission prompts
     }
 
 def collect_docker_info():
+    print("Collecting Docker information...")
     docker_version = run_command("docker --version")
     if "Docker version" not in docker_version:
         return {"error": "Docker is not installed or not in PATH"}
@@ -74,29 +79,24 @@ def collect_docker_info():
     }
 
 def collect_system_logs():
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    today = datetime.now().strftime("%Y-%m-%d")
-    return run_command(f"log show --start '{yesterday} 00:00:00' --end '{today} 23:59:59'")
+    print("Collecting recent system logs (last 1 hour)...")
+    one_hour_ago = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    return run_command(f"log show --start '{one_hour_ago}' --style syslog")
 
 def main():
-    collection_functions = [
-        ("System Info", collect_system_info),
-        ("Network Info", collect_network_info),
-        ("Process Info", collect_process_info),
-        ("User Info", collect_user_info),
-        ("File System Info", collect_file_system_info),
-        ("Security Info", collect_security_info),
-        ("Docker Info", collect_docker_info),
-        ("System Logs", collect_system_logs)
-    ]
-
-    incident_data = {"timestamp": datetime.now().isoformat()}
-
-    with tqdm(total=len(collection_functions), desc="Collecting Data", unit="module") as pbar:
-        for name, func in collection_functions:
-            incident_data[name.lower().replace(" ", "_")] = func()
-            pbar.update(1)
-            pbar.set_description(f"Collected {name}")
+    print("Starting macOS incident response data collection...")
+    
+    incident_data = {
+        "timestamp": datetime.now().isoformat(),
+        "system_info": collect_system_info(),
+        "network_info": collect_network_info(),
+        "process_info": collect_process_info(),
+        "user_info": collect_user_info(),
+        "file_system_info": collect_file_system_info(),
+        "security_info": collect_security_info(),
+        "docker_info": collect_docker_info(),
+        "recent_logs": collect_system_logs(),
+    }
 
     output_file = f"macos_incident_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(output_file, 'w') as f:

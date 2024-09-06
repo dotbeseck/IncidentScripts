@@ -72,20 +72,7 @@ function Get-FileSystemInfo {
 # Collect Security Information
 function Get-SecurityInfo {
     Write-Progress -Activity "Collecting Incident Response Data" -Status "Gathering Security Information" -PercentComplete 85
-    
-    # Function to safely get local security policy
-    function Get-LocalSecurityPolicy {
-        try {
-            $tempFile = "C:\Windows\Temp\secpol_temp.cfg"
-            $null = secedit /export /cfg $tempFile
-            $securityPolicy = Get-Content $tempFile
-            Remove-Item $tempFile -Force
-            return $securityPolicy
-        }
-        catch {
-            return "Unable to export local security policy: $_"
-        }
-    }
+
 
     return @{
         FirewallStatus = Get-NetFirewallProfile | Select-Object Name, Enabled
@@ -97,13 +84,12 @@ function Get-SecurityInfo {
         InstalledSoftware = Get-WmiObject -Class Win32_Product | Select-Object Name, Version, Vendor
         StartupPrograms = Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location
         SMBShares = Get-SmbShare | Select-Object Name, Path, Description
-        LocalSecurityPolicy = Get-LocalSecurityPolicy
         # Additional security checks
         WindowsDefenderStatus = Get-MpComputerStatus | Select-Object AMServiceEnabled, AntispywareEnabled, AntivirusEnabled, BehaviorMonitorEnabled, IoavProtectionEnabled, NISEnabled, OnAccessProtectionEnabled, RealTimeProtectionEnabled
         AdminAccountStatus = Get-LocalUser | Where-Object {$_.Name -eq 'Administrator'} | Select-Object Name, Enabled
         GuestAccountStatus = Get-LocalUser | Where-Object {$_.Name -eq 'Guest'} | Select-Object Name, Enabled
         PasswordPolicy = Get-LocalUser | Select-Object Name, PasswordExpires, PasswordLastSet, PasswordRequired
-        AuditPolicy = auditpol /get /category:* | Out-String
+        #AuditPolicy = auditpol /get /category:* | Out-String
     }
 }
 
@@ -114,25 +100,39 @@ function Get-SystemLogs {
     return Get-WinEvent -FilterHashtable @{LogName='System','Application','Security'; StartTime=$yesterday} -ErrorAction SilentlyContinue
 }
 
+
+function Save-DataToFile {
+    param (
+        [string]$Name,
+        $Data,
+        [string]$OutputFile
+    )
+    Write-Progress -Activity "Saving Incident Response Data" -Status "Saving $Name data..." -PercentComplete -1
+    $jsonData = $Data | ConvertTo-Json -Depth 10 -Compress
+    Add-Content -Path $OutputFile -Value "`"$Name`": $jsonData,"
+}
+
 # Main function to collect all data
 function Collect-IncidentResponseData {
     Write-Progress -Activity "Collecting Incident Response Data" -Status "Initializing..." -PercentComplete 0
 
-    $incidentData = @{
-        Timestamp = Get-Date -Format o
-        SystemInfo = Get-SystemInfo
-        NetworkInfo = Get-NetworkInfo
-        ProcessInfo = Get-ProcessInfo
-        UserInfo = Get-UserInfo
-        FileSystemInfo = Get-FileSystemInfo
-        SecurityInfo = Get-SecurityInfo
-        SystemLogs = Get-SystemLogs
-    }
-
-    Write-Progress -Activity "Collecting Incident Response Data" -Status "Saving Data..." -PercentComplete 98
-
     $outputFile = "Windows_Incident_Response_$(Get-Date -Format 'yyyyMMdd_HHmmss').json"
-    $incidentData | ConvertTo-Json -Depth 10 | Out-File $outputFile
+    
+    # Initialize the JSON file
+    Set-Content -Path $outputFile -Value "{"
+
+    # Collect and save data in chunks
+    Save-DataToFile -Name "Timestamp" -Data (Get-Date -Format o) -OutputFile $outputFile
+    Save-DataToFile -Name "SystemInfo" -Data (Get-SystemInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "NetworkInfo" -Data (Get-NetworkInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "ProcessInfo" -Data (Get-ProcessInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "UserInfo" -Data (Get-UserInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "FileSystemInfo" -Data (Get-FileSystemInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "SecurityInfo" -Data (Get-SecurityInfo) -OutputFile $outputFile
+    Save-DataToFile -Name "SystemLogs" -Data (Get-SystemLogs) -OutputFile $outputFile
+
+    # Close the JSON file
+    Add-Content -Path $outputFile -Value "}"
 
     Write-Progress -Activity "Collecting Incident Response Data" -Status "Complete" -PercentComplete 100
     Write-Host "Incident response data has been collected and saved to $outputFile"
@@ -140,3 +140,4 @@ function Collect-IncidentResponseData {
 
 # Run the main function
 Collect-IncidentResponseData
+

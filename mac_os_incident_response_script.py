@@ -2,6 +2,7 @@ import subprocess
 import os
 import json
 from datetime import datetime, timedelta
+from tqdm import tqdm
 
 def run_command(command):
     try:
@@ -44,7 +45,7 @@ def collect_file_system_info():
     return {
         "disk_usage": run_command("df -h"),
         "mounted_volumes": run_command("mount"),
-        "recent_files": run_command("find /Users -type f -mtime -7 -ls"),
+        # Removed recent files collection to avoid permission prompts
     }
 
 def collect_security_info():
@@ -55,24 +56,21 @@ def collect_security_info():
         "filevault_status": run_command("fdesetup status"),
         "software_updates": run_command("softwareupdate --list"),
         "xprotect_version": run_command("system_profiler SPInstallHistoryDataType | grep -A 4 XProtectPlistConfigData"),
-        "installed_applications": run_command("system_profiler SPApplicationsDataType"),
-        "launch_agents": run_command("ls -la /Library/LaunchAgents /System/Library/LaunchAgents ~/Library/LaunchAgents"),
-        "launch_daemons": run_command("ls -la /Library/LaunchDaemons /System/Library/LaunchDaemons"),
-        "cron_jobs": run_command("crontab -l"),
-        "ssh_config": run_command("cat /etc/ssh/sshd_config"),
-        "root_ssh_keys": run_command("ls -la /var/root/.ssh"),
-        "system_extensions": run_command("systemextensionsctl list"),
-        "kernel_extensions": run_command("kextstat"),
-        "signed_system_volume": run_command("csrutil authenticated-root status"),
-        "active_directory_status": run_command("dsconfigad -show"),
-        "touchid_for_sudo": run_command("grep pam_tid /etc/pam.d/sudo"),
-        "network_time": run_command("systemsetup -getusingnetworktime"),
-        "automatic_logout": run_command("systemsetup -getautologout"),
-        "screensaver_settings": run_command("defaults read com.apple.screensaver"),
-        "sip_compatibility_mode": run_command("csrutil internal"),
-        "mdm_enrollment": run_command("profiles status -type enrollment"),
-        "secure_token_status": run_command("diskutil apfs listUsers /"),
-        "wifi_networks": run_command("networksetup -listpreferredwirelessnetworks en0"),
+        # Removed or modified commands that might trigger permission prompts
+    }
+
+def collect_docker_info():
+    docker_version = run_command("docker --version")
+    if "Docker version" not in docker_version:
+        return {"error": "Docker is not installed or not in PATH"}
+
+    return {
+        "version": docker_version,
+        "running_containers": run_command("docker ps --format '{{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'"),
+        "all_containers": run_command("docker ps -a --format '{{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'"),
+        "images": run_command("docker images --format '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}\t{{.Size}}'"),
+        "networks": run_command("docker network ls --format '{{.ID}}\t{{.Name}}\t{{.Driver}}'"),
+        "volumes": run_command("docker volume ls --format '{{.Name}}\t{{.Driver}}'")
     }
 
 def collect_system_logs():
@@ -81,22 +79,30 @@ def collect_system_logs():
     return run_command(f"log show --start '{yesterday} 00:00:00' --end '{today} 23:59:59'")
 
 def main():
-    incident_data = {
-        "timestamp": datetime.now().isoformat(),
-        "system_info": collect_system_info(),
-        "network_info": collect_network_info(),
-        "process_info": collect_process_info(),
-        "user_info": collect_user_info(),
-        "file_system_info": collect_file_system_info(),
-        "security_info": collect_security_info(),
-        "system_logs": collect_system_logs(),
-    }
+    collection_functions = [
+        ("System Info", collect_system_info),
+        ("Network Info", collect_network_info),
+        ("Process Info", collect_process_info),
+        ("User Info", collect_user_info),
+        ("File System Info", collect_file_system_info),
+        ("Security Info", collect_security_info),
+        ("Docker Info", collect_docker_info),
+        ("System Logs", collect_system_logs)
+    ]
+
+    incident_data = {"timestamp": datetime.now().isoformat()}
+
+    with tqdm(total=len(collection_functions), desc="Collecting Data", unit="module") as pbar:
+        for name, func in collection_functions:
+            incident_data[name.lower().replace(" ", "_")] = func()
+            pbar.update(1)
+            pbar.set_description(f"Collected {name}")
 
     output_file = f"macos_incident_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(output_file, 'w') as f:
         json.dump(incident_data, f, indent=2)
 
-    print(f"Incident response data has been collected and saved to {output_file}")
+    print(f"\nIncident response data has been collected and saved to {output_file}")
 
 if __name__ == "__main__":
     main()

@@ -540,7 +540,7 @@ def check_persistence_techniques(powershell_script):
         persistence_techniques.append(("Modification of Run/RunOnce registry keys", Fore.RED))
     
     # Check for startup folder
-    if re.search(r'\\\\AppData\\\Roaming\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup', powershell_script, re.IGNORECASE):
+    if re.search(r'\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("Access to Startup folder", Fore.RED))
     
     # Check for WMI event subscription

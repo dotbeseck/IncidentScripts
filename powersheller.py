@@ -184,9 +184,9 @@ def analyze_variable_content(var_name, var_value, powershell_script):
     """Analyze the content and usage of a specific variable"""
     analysis = []
     
-    if re.search(r'HKCU:\\|HKLM:\\', var_value, re.IGNORECASE):
+    if re.search(r'HKCU:\\\\|HKLM:\\\\', var_value, re.IGNORECASE):
         analysis.append("Contains a registry path")
-        if re.search(r'\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', var_value, re.IGNORECASE):
+        if re.search(r'\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run', var_value, re.IGNORECASE):
             analysis.append("Points to the Run key (potential persistence mechanism)")
     usage_analysis = []
     if re.search(rf"\${var_name}.*New-ItemProperty", powershell_script):
@@ -306,7 +306,7 @@ def breakdown_script(powershell_script):
     dotnet_items_used = set(re.findall(r'(System\.\w+(?:\.\w+)*(?:::[\w.]+)?)', powershell_script))
     
     # General analysis
-    if re.search(r'(New-ItemProperty|Set-ItemProperty).*\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', powershell_script, re.IGNORECASE):
+    if re.search(r'(New-ItemProperty|Set-ItemProperty).*\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run', powershell_script, re.IGNORECASE):
         breakdown.append(("Modifies the Run key for persistence", Fore.RED))
     
     if any(cmd in cmdlets_used for cmd in ['Invoke-WebRequest', 'DownloadString', 'Net.WebClient']):
@@ -405,9 +405,9 @@ def check_mitre_attack_techniques(powershell_script):
     if re.search(r'(Get-WmiObject\s+Win32_ComputerSystem|Get-CimInstance\s+Win32_ComputerSystem)', powershell_script, re.IGNORECASE):
         techniques.append(("T1497", "Virtualization/Sandbox Evasion: Checking for virtualization artifacts"))
     
-    # T1518 - Software Discovery
+    # T1518 - SOFTWARE Discovery
     if re.search(r'(Get-ItemProperty\s+HKLM:\SOFTWARE|Get-WmiObject\s+Win32_Product)', powershell_script, re.IGNORECASE):
-        techniques.append(("T1518", "Software Discovery: Enumerating installed software"))
+        techniques.append(("T1518", "SOFTWARE Discovery: Enumerating installed software"))
     
     # T1087 - Account Discovery
     if re.search(r'(Get-LocalUser|Get-LocalGroup|Net\s+User)', powershell_script, re.IGNORECASE):
@@ -506,7 +506,7 @@ def check_malware_techniques(powershell_script):
         malware_techniques.append(("Suspicious file write operation (possible dropper behavior)", Fore.RED))
     
     # Check for registry modifications for persistence
-    if re.search(r'(New-ItemProperty|Set-ItemProperty).*\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', powershell_script, re.IGNORECASE):
+    if re.search(r'(New-ItemProperty|Set-ItemProperty).*\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run', powershell_script, re.IGNORECASE):
         malware_techniques.append(("Modification of run keys for persistence", Fore.RED))
     
     # Check for scheduled task creation
@@ -536,11 +536,11 @@ def check_persistence_techniques(powershell_script):
     persistence_techniques = []
     
     # Check for Run and RunOnce registry keys
-    if re.search(r'(HKCU|HKLM):\\Software\\Microsoft\\Windows\\CurrentVersion\\(Run|RunOnce)', powershell_script, re.IGNORECASE):
+    if re.search(r'(HKCU|HKLM):\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\(Run|RunOnce)', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("Modification of Run/RunOnce registry keys", Fore.RED))
     
     # Check for startup folder
-    if re.search(r'\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup', powershell_script, re.IGNORECASE):
+    if re.search(r'\\\\AppData\\\Roaming\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("Access to Startup folder", Fore.RED))
     
     # Check for WMI event subscription
@@ -560,15 +560,15 @@ def check_persistence_techniques(powershell_script):
         persistence_techniques.append(("Group Policy modification", Fore.RED))
     
     # Check for Office macro autorun keys
-    if re.search(r'HKCU:\\Software\\Microsoft\\Office\.*\\Word\\Security\\VBAWarnings', powershell_script, re.IGNORECASE):
+    if re.search(r'HKCU:\\\\SOFTWARE\\\\Microsoft\\\\Office\.*\\\\Word\\\\Security\\\\VBAWarnings', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("Modification of Office macro settings", Fore.RED))
     
     # Check for AppInit_DLLs
-    if re.search(r'HKLM:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows\\AppInit_DLLs', powershell_script, re.IGNORECASE):
+    if re.search(r'HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\Windows\\\\AppInit_DLLs', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("Modification of AppInit_DLLs", Fore.RED))
     
     # Check for ScreenSaver persistence
-    if re.search(r'HKCU:\\Control Panel\\Desktop\\SCRNSAVE\.EXE', powershell_script, re.IGNORECASE):
+    if re.search(r'HKCU:\\Control Panel\\Desktop\\SCRNSAVE\\.EXE', powershell_script, re.IGNORECASE):
         persistence_techniques.append(("ScreenSaver executable modification", Fore.RED))
     
     return persistence_techniques

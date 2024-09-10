@@ -223,7 +223,7 @@ def analyze_variable_content(var_name, var_value, powershell_script):
         analysis.append("Contains likely Base64-encoded data")
     
     # Check if the variable contains a file path
-    elif '\' in var_value or '/' in var_value:
+    elif '\\' in var_value or '/' in var_value:
         analysis.append("Contains a file path")
     
     # Analyze how the variable is used in the script

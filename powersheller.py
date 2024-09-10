@@ -6,11 +6,41 @@ import time
 from colorama import init, Fore, Style
 from queue import Queue
 import threading
+import base64
 
 # Initialize colorama
 init(autoreset=True)
 
 result_queue = Queue()
+
+def decode_base64_command(powershell_script):
+    """Decode base64-encoded PowerShell commands if present"""
+    base64_pattern = r'powershell\s+-enc(?:odedCommand)?\s+([A-Za-z0-9+/=]+)'
+    matches = re.findall(base64_pattern, powershell_script, re.IGNORECASE)
+    
+    if matches:
+        print(f"{Fore.YELLOW}Base64 encoded command(s) detected. Decoding...{Style.RESET_ALL}")
+        for encoded_command in matches:
+            try:
+                decoded_command = base64.b64decode(encoded_command).decode('utf-16-le')
+                print(f"{Fore.GREEN}Decoded command:{Style.RESET_ALL}")
+                print(decoded_command)
+                print(f"{Fore.YELLOW}Analyzing decoded command...{Style.RESET_ALL}")
+                analyze_powershell(decoded_command)
+            except Exception as e:
+                print(f"{Fore.RED}Error decoding base64 command: {str(e)}{Style.RESET_ALL}")
+    
+    return powershell_script
+
+def analyze_powershell(powershell_script):
+    # First, check for and decode any base64 encoded commands
+    decode_base64_command(powershell_script)
+    
+    variables = extract_variables(powershell_script)
+    replaced_script = replace_variables(powershell_script, variables)
+
+    print(f"{Fore.GREEN}{Style.BRIGHT}Original Script:{Style.RESET_ALL}")
+    print(powershell_script)
 
 
 def fetch_cmdlet_from_url(cmdlet, base_url):

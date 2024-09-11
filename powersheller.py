@@ -232,29 +232,7 @@ def replace_variables(powershell_script, variables):
     return powershell_script
 
 
-def online_dotnet_lookup(dotnet_item):
-    """Attempt to fetch .NET class or method information from Microsoft Docs"""
-    base_url = "https://docs.microsoft.com/en-us/dotnet/api/"
-    url = f"{base_url}{dotnet_item.lower()}?view=netframework-4.8"
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            description = soup.find("meta", {"name": "description"})
-            if description:
-                return description["content"]
-    except requests.RequestException as e:
-        print(f"{Fore.YELLOW}Warning: Error fetching info for {dotnet_item}: {str(e)}")
-    return None
-
-
 def fetch_dotnet_info(dotnet_item):
-    """Fetch information about a .NET class or method"""
-    online_info = online_dotnet_lookup(dotnet_item)
-    if online_info:
-        return online_info
-
-    # Fallback to local dictionary if online lookup fails
     dotnet_info = {
         "System.Net.WebClient": "Provides common methods for sending data to and receiving data from a resource identified by a URI.",
         "System.Convert": "Converts a base data type to another base data type.",
@@ -363,21 +341,6 @@ def breakdown_variables(variables, powershell_script):
 
     return variable_info
 
-
-def online_dotnet_lookup(dotnet_item):
-    """Attempt to fetch .NET class or method information from Microsoft Docs"""
-    base_url = "https://docs.microsoft.com/en-us/dotnet/api/"
-    url = f"{base_url}{dotnet_item.lower()}?view=netframework-4.8"
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            description = soup.find("meta", {"name": "description"})
-            if description:
-                return description["content"]
-    except requests.RequestException as e:
-        print(f"{Fore.YELLOW}Warning: Error fetching info for {dotnet_item}: {str(e)}")
-    return None
 
 def breakdown_script(powershell_script):
     """Detailed analysis and breakdown of PowerShell actions"""

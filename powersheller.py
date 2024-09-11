@@ -12,29 +12,6 @@ init(autoreset=True)
 
 result_queue = Queue()
 
-
-def decode_base64_command(powershell_script):
-    """Decode a base64-encoded PowerShell command"""
-    try:
-        # Remove any whitespace and the 'powershell -EC' prefix if present
-        cleaned_command = powershell_script.split()[-1]
-        
-        # Decode the Base64 string
-        decoded_bytes = base64.b64decode(cleaned_command)
-        
-        # Convert the bytes to a string using UTF-16 Little Endian encoding
-        decoded_command = decoded_bytes.decode('utf-16-le')
-        return decoded_command
-    except Exception as e:
-        return f"Error decoding command: {str(e)}"
-
-def is_base64(s):
-    try:
-        # Check if the string is Base64 encoded
-        return base64.b64encode(base64.b64decode(s)).decode() == s
-    except Exception:
-        return False
-
 MITRE_MAPPINGS = {
     # Credential Access
     r'mimikatz|dump|Get-Credential|ConvertTo-SecureString': 'T1003 - OS Credential Dumping',
@@ -48,7 +25,7 @@ MITRE_MAPPINGS = {
     r'Set-ExecutionPolicy': 'T1059.001 - PowerShell: ExecutionPolicy Bypass',
     
     # Execution
-    r'Invoke-Expression|IEX|Invoke-Command': 'T1059.001 - PowerShell',
+    r'Invoke-Expression|Invoke-Command': 'T1059.001 - PowerShell Command Invocation',
     r'Start-Process|Invoke-Item': 'T1204 - User Execution',
     
     # Persistence
@@ -83,6 +60,85 @@ MITRE_MAPPINGS = {
     r'Invoke-BloodHound|Get-BloodHoundData': 'T1087 - Account Discovery',
     r'ConvertTo-SID|ConvertFrom-SID': 'T1087 - Account Discovery',
 }
+
+
+common_cmdlets = {
+    "New-Item": "Creates a new item.",
+    "Join-Path": "Combines a path and a child path.",
+    "Add-Type": "Adds a Microsoft .NET class to a PowerShell session.",
+    "Get-ChildItem": "Gets the items and child items in one or more specified locations.",
+    "Set-Location": "Sets the current working location to a specified location.",
+    "Invoke-WebRequest": "Gets content from a web page on the Internet.",
+    "ConvertTo-Json": "Converts an object to a JSON-formatted string.",
+    "ConvertFrom-Json": "Converts a JSON-formatted string to a custom object.",
+    "Get-Process": "Gets the processes that are running on the local computer.",
+    "Sort-Object": "Sorts objects by property values.",
+    "Select-Object": "Selects specified properties of an object or set of objects.",
+    "Where-Object": "Selects objects from a collection based on their property values.",
+    "ForEach-Object": "Performs an operation against each item in a collection of input objects.",
+    "Get-Content": "Gets the content of the item at the specified location.",
+    "Set-Content": "Writes or replaces the content in an item with new content.",
+    "Out-File": "Sends output to a file.",
+    "Get-Item": "Gets the item at the specified location.",
+    "Remove-Item": "Deletes the specified items.",
+    "Test-Path": "Determines whether all elements of a path exist.",
+    "New-Object": "Creates an instance of a Microsoft .NET Framework or COM object.",
+    "Get-Member": "Gets the properties and methods of objects.",
+    "Measure-Object": "Calculates the numeric properties of objects, and the characters, words, and lines in string objects.",
+    "Compare-Object": "Compares two sets of objects.",
+    "Group-Object": "Groups objects that contain the same value for specified properties.",
+    "Export-Csv": "Converts objects into a series of comma-separated value (CSV) strings and saves the strings to a file.",
+    "Import-Csv": "Creates table-like custom objects from the items in a CSV file.",
+    "Invoke-Expression": "Runs commands or expressions on the local computer.",
+    "Start-Process": "Starts one or more processes on the local computer.",
+    "Stop-Process": "Stops one or more running processes.",
+    "New-ItemProperty": "Creates a new property for an item and sets its value.",
+    "Set-ItemProperty": "Sets the value of a property of an item.",
+    "Get-WmiObject": "Gets instances of Windows Management Instrumentation (WMI) classes or information about the available classes.",
+    "Invoke-Command": "Runs commands on local and remote computers.",
+    "Get-Service": "Gets the services on a local or remote computer.",
+    "Start-Service": "Starts one or more stopped services.",
+    "Stop-Service": "Stops one or more running services.",
+    "Get-EventLog": "Gets the events in an event log, or a list of the event logs, on the local or remote computers.",
+    "Write-EventLog": "Writes an event to an event log.",
+    "Get-Help": "Displays information about PowerShell commands and concepts.",
+    "Get-Command": "Gets all commands.",
+    "Get-Module": "Gets the modules that have been imported or that can be imported into the current session.",
+    "Import-Module": "Adds modules to the current session.",
+    "Export-ModuleMember": "Specifies the module members that are exported.",
+    "New-Module": "Creates a new dynamic module that exists only in memory.",
+    "New-PSSession": "Creates a persistent connection to a local or remote computer.",
+    "Enter-PSSession": "Starts an interactive session with a remote computer.",
+    "Exit-PSSession": "Ends an interactive session with a remote computer.",
+    "Invoke-RestMethod": "Sends an HTTP or HTTPS request to a RESTful web service.",
+    "Out-Null": "Sends output to $null, effectively deleting it.",
+    "Split-Path": "Returns the specified part of a path.",
+    "Get-Random": "Gets a random number, selects random objects from a collection, or shuffles a collection randomly.",
+}
+
+def decode_base64_command(powershell_script):
+    """Decode a base64-encoded PowerShell command"""
+    try:
+        # Remove any whitespace and the 'powershell -EC' prefix if present
+        cleaned_command = powershell_script.split()[-1]
+        
+        # Decode the Base64 string
+        decoded_bytes = base64.b64decode(cleaned_command)
+        
+        # Convert the bytes to a string using UTF-16 Little Endian encoding
+        decoded_command = decoded_bytes.decode('utf-16-le')
+        return decoded_command
+    except Exception as e:
+        return f"Error decoding command: {str(e)}"
+
+def is_base64(s):
+    try:
+        # Check if the string is Base64 encoded
+        return base64.b64encode(base64.b64decode(s)).decode() == s
+    except Exception:
+        return False
+
+
 
 def detect_mitre_atomic(powershell_script):
     detected_techniques = set()
@@ -141,59 +197,6 @@ def fetch_cmdlet_info(cmdlet):
     if online_info:
         return online_info
 
-    common_cmdlets = {
-        "New-Item": "Creates a new item.",
-        "Join-Path": "Combines a path and a child path.",
-        "Add-Type": "Adds a Microsoft .NET class to a PowerShell session.",
-        "Get-ChildItem": "Gets the items and child items in one or more specified locations.",
-        "Set-Location": "Sets the current working location to a specified location.",
-        "Invoke-WebRequest": "Gets content from a web page on the Internet.",
-        "ConvertTo-Json": "Converts an object to a JSON-formatted string.",
-        "ConvertFrom-Json": "Converts a JSON-formatted string to a custom object.",
-        "Get-Process": "Gets the processes that are running on the local computer.",
-        "Sort-Object": "Sorts objects by property values.",
-        "Select-Object": "Selects specified properties of an object or set of objects.",
-        "Where-Object": "Selects objects from a collection based on their property values.",
-        "ForEach-Object": "Performs an operation against each item in a collection of input objects.",
-        "Get-Content": "Gets the content of the item at the specified location.",
-        "Set-Content": "Writes or replaces the content in an item with new content.",
-        "Out-File": "Sends output to a file.",
-        "Get-Item": "Gets the item at the specified location.",
-        "Remove-Item": "Deletes the specified items.",
-        "Test-Path": "Determines whether all elements of a path exist.",
-        "New-Object": "Creates an instance of a Microsoft .NET Framework or COM object.",
-        "Get-Member": "Gets the properties and methods of objects.",
-        "Measure-Object": "Calculates the numeric properties of objects, and the characters, words, and lines in string objects.",
-        "Compare-Object": "Compares two sets of objects.",
-        "Group-Object": "Groups objects that contain the same value for specified properties.",
-        "Export-Csv": "Converts objects into a series of comma-separated value (CSV) strings and saves the strings to a file.",
-        "Import-Csv": "Creates table-like custom objects from the items in a CSV file.",
-        "Invoke-Expression": "Runs commands or expressions on the local computer.",
-        "Start-Process": "Starts one or more processes on the local computer.",
-        "Stop-Process": "Stops one or more running processes.",
-        "New-ItemProperty": "Creates a new property for an item and sets its value.",
-        "Set-ItemProperty": "Sets the value of a property of an item.",
-        "Get-WmiObject": "Gets instances of Windows Management Instrumentation (WMI) classes or information about the available classes.",
-        "Invoke-Command": "Runs commands on local and remote computers.",
-        "Get-Service": "Gets the services on a local or remote computer.",
-        "Start-Service": "Starts one or more stopped services.",
-        "Stop-Service": "Stops one or more running services.",
-        "Get-EventLog": "Gets the events in an event log, or a list of the event logs, on the local or remote computers.",
-        "Write-EventLog": "Writes an event to an event log.",
-        "Get-Help": "Displays information about PowerShell commands and concepts.",
-        "Get-Command": "Gets all commands.",
-        "Get-Module": "Gets the modules that have been imported or that can be imported into the current session.",
-        "Import-Module": "Adds modules to the current session.",
-        "Export-ModuleMember": "Specifies the module members that are exported.",
-        "New-Module": "Creates a new dynamic module that exists only in memory.",
-        "New-PSSession": "Creates a persistent connection to a local or remote computer.",
-        "Enter-PSSession": "Starts an interactive session with a remote computer.",
-        "Exit-PSSession": "Ends an interactive session with a remote computer.",
-        "Invoke-RestMethod": "Sends an HTTP or HTTPS request to a RESTful web service.",
-        "Out-Null": "Sends output to $null, effectively deleting it.",
-        "Split-Path": "Returns the specified part of a path.",
-        "Get-Random": "Gets a random number, selects random objects from a collection, or shuffles a collection randomly.",
-    }
 
     if cmdlet in common_cmdlets:
         return common_cmdlets[cmdlet]

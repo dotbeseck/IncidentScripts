@@ -59,7 +59,7 @@ MITRE_MAPPINGS = {
     # Discovery
     r'Get-Process|Get-Service|Get-Item|Get-ChildItem': 'T1057 - Process Discovery',
     r'Get-WmiObject|Get-CimInstance': 'T1047 - Windows Management Instrumentation',
-    r'Test-NetConnection|Invoke-WebRequest': 'T1016 - System Network Configuration Discovery',
+    r'Test-NetConnection': 'T1016 - System Network Configuration Discovery',
     
     # Lateral Movement
     r'New-PSSession|Enter-PSSession': 'T1021.006 - Remote Services: Windows Remote Management',
@@ -317,7 +317,7 @@ def analyze_variable_content(var_name, var_value, powershell_script):
         analysis.append("Contains a URL")
 
     # Check if the variable contains what looks like Base64 data
-    elif re.match(r"^[A-Za-z0-9+/]{50,}={0,2}$", var_value):
+    elif re.match(r"[A-Za-z0-9+/]{50,}={0,2}", var_value):
         analysis.append("Contains likely Base64-encoded data")
 
     # Check if the variable contains a file path
@@ -1037,9 +1037,5 @@ def main():
         print(f"{Fore.RED}An error occurred: {str(e)}")
 
 # Add this line at the end of your script
-if __name__ == "__main__":
-    main()
-
-
 if __name__ == "__main__":
     main()

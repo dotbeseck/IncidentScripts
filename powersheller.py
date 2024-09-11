@@ -2,7 +2,6 @@ import re
 import requests
 import sys
 from bs4 import BeautifulSoup
-import time
 from colorama import init, Fore, Style
 from queue import Queue
 import threading
@@ -376,36 +375,6 @@ def online_dotnet_lookup(dotnet_item):
     except requests.RequestException as e:
         print(f"{Fore.YELLOW}Warning: Error fetching info for {dotnet_item}: {str(e)}")
     return None
-
-
-def fetch_dotnet_info(dotnet_item):
-    """Fetch information about a .NET class or method"""
-    online_info = online_dotnet_lookup(dotnet_item)
-    if online_info:
-        return online_info
-
-    # Fallback to local dictionary if online lookup fails
-    dotnet_info = {
-        "System.Net.WebClient": "Provides common methods for sending data to and receiving data from a resource identified by a URI.",
-        "System.Convert": "Converts a base data type to another base data type.",
-        "System.Text.Encoding": "Represents a character encoding.",
-        "System.Reflection.Assembly": "Represents an assembly, which is a reusable, versionable, and self-describing building block of a common language runtime application.",
-        "System.Diagnostics.Process": "Provides access to local and remote processes and enables you to start and stop local system processes.",
-        "System.Net.ServicePointManager": "Provides connection management for HTTP connections.",
-        "System.Environment": "Provides information about, and means to manipulate, the current environment and platform.",
-        "System.IO.File": "Provides static methods for the creation, copying, deletion, moving, and opening of files.",
-        "System.IO.Compression.ZipFile": "Provides static methods for creating, extracting, and opening zip archives.",
-        "System.Management.Automation.PSObject": "Provides a way to access the public properties of an object.",
-        "System.Management.Automation.ScriptBlock": "Represents a unit of executable PowerShell script.",
-        "System.Security.Cryptography.AesManaged": "Provides a managed implementation of the Advanced Encryption Standard (AES) symmetric algorithm.",
-        "System.Security.Cryptography.RSACryptoServiceProvider": "Provides an implementation of the RSA algorithm.",
-        "System.DirectoryServices.ActiveDirectory.Domain": "Represents an Active Directory Domain Services domain.",
-        "System.Runtime.InteropServices.Marshal": "Provides a collection of methods for allocating unmanaged memory, copying unmanaged memory blocks, and converting managed to unmanaged types.",
-    }
-    return dotnet_info.get(
-        dotnet_item, f"No detailed information available for {dotnet_item}"
-    )
-
 
 def breakdown_script(powershell_script):
     """Detailed analysis and breakdown of PowerShell actions"""

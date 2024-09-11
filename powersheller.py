@@ -37,6 +37,61 @@ def decode_base64_command(powershell_script):
             except Exception as e:
                 print(f"{Fore.RED}Error decoding base64 command: {str(e)}{Style.RESET_ALL}")
 
+MITRE_MAPPINGS = {
+    # Credential Access
+    r'mimikatz|dump|Get-Credential|ConvertTo-SecureString': 'T1003 - OS Credential Dumping',
+    r'Get-ADUser|Get-ADGroupMember': 'T1087 - Account Discovery',
+    r'Invoke-Kerberoast|Add-Type -AssemblyName System\.IdentityModel': 'T1558.003 - Kerberoasting',
+    
+    # Defense Evasion
+    r'Set-MpPreference|Disable-WindowsOptionalFeature': 'T1562.001 - Impair Defenses: Disable or Modify Tools',
+    r'New-ItemProperty|Set-ItemProperty|Remove-ItemProperty': 'T1112 - Modify Registry',
+    r'Unblock-File': 'T1553.005 - Subvert Trust Controls: Mark-of-the-Web Bypass',
+    r'Set-ExecutionPolicy': 'T1059.001 - PowerShell: ExecutionPolicy Bypass',
+    
+    # Execution
+    r'Invoke-Expression|IEX|Invoke-Command': 'T1059.001 - PowerShell',
+    r'Start-Process|Invoke-Item': 'T1204 - User Execution',
+    
+    # Persistence
+    r'New-Service|Set-Service': 'T1543.003 - Create or Modify System Process: Windows Service',
+    r'New-ScheduledTask|Register-ScheduledTask': 'T1053.005 - Scheduled Task',
+    r'New-LocalUser|Add-LocalGroupMember': 'T1136 - Create Account',
+    
+    # Discovery
+    r'Get-Process|Get-Service|Get-Item|Get-ChildItem': 'T1057 - Process Discovery',
+    r'Get-WmiObject|Get-CimInstance': 'T1047 - Windows Management Instrumentation',
+    r'Test-NetConnection|Invoke-WebRequest': 'T1016 - System Network Configuration Discovery',
+    
+    # Lateral Movement
+    r'New-PSSession|Enter-PSSession': 'T1021.006 - Remote Services: Windows Remote Management',
+    r'Invoke-WMIMethod.*Win32_Process': 'T1047 - Windows Management Instrumentation',
+    
+    # Collection
+    r'Get-Clipboard': 'T1115 - Clipboard Data',
+    r'Compress-Archive': 'T1560 - Archive Collected Data',
+    
+    # Command and Control
+    r'Invoke-WebRequest|DownloadString|Net\.WebClient': 'T1105 - Ingress Tool Transfer',
+    
+    # Impact
+    r'Remove-Item|Clear-Content': 'T1485 - Data Destruction',
+    
+    # Additional Techniques
+    r'Set-Location': 'T1005 - Data from Local System',
+    r'Get-ADDomain|Get-ADForest': 'T1482 - Domain Trust Discovery',
+    r'Get-DnsClientServerAddress': 'T1016 - System Network Configuration Discovery',
+    r'Invoke-Mimikatz': 'T1003.001 - LSASS Memory',
+    r'Invoke-BloodHound|Get-BloodHoundData': 'T1087 - Account Discovery',
+    r'ConvertTo-SID|ConvertFrom-SID': 'T1087 - Account Discovery',
+}
+
+def detect_mitre_atomic(powershell_code):
+    detected_techniques = set()
+    for pattern, technique in MITRE_MAPPINGS.items():
+        if re.search(pattern, powershell_code, re.IGNORECASE):
+            detected_techniques.add(technique)
+    return list(detected_techniques)
 
 def analyze_powershell(powershell_script):
     # First, check for and decode any base64 encoded commands
@@ -408,7 +463,7 @@ def breakdown_script(powershell_script):
     breakdown.append(("PowerShell Cmdlets Used:", Fore.GREEN))
     for cmdlet in sorted(cmdlets_used):
         info = fetch_cmdlet_info(cmdlet)
-        breakdown.append((f"  {cmdlet}: {info}", Fore.BLUE))
+        breakdown.append((f"{Fore.BLUE}{cmdlet}: {Fore.GREEN}{info}", Style.DIM))
 
     # .NET Methods and Classes analysis
     if dotnet_items_used:
@@ -927,6 +982,15 @@ def analyze_powershell(powershell_script):
             print(f"{Fore.RED}- {technique_id}: {description}")
     else:
         print(f"{Fore.GREEN}No common MITRE ATT&CK techniques detected.")
+
+    atomic_techniques = detect_mitre_atomic(powershell_script)
+    if atomic_techniques:
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}Atomic Techniques Detected:{Style.RESET_ALL}"
+    )
+        for technique in atomic_techniques:
+            print(f"- {technique}")
+    else:
+        print(f"{Fore.GREEN} No Atomic Red Team Tactics Found.")
 
     print(f"\n{Fore.GREEN}{Style.BRIGHT}Evasion Techniques Detected:{Style.RESET_ALL}")
     evasion_techniques = check_evasion_techniques(powershell_script)

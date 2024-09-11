@@ -7,7 +7,7 @@ from queue import Queue
 import threading
 import base64
 
-# Initialize colorama
+
 init(autoreset=True)
 
 result_queue = Queue()
@@ -291,7 +291,7 @@ def analyze_variable_content(var_name, var_value, powershell_script):
         if "FromBase64String" in var_value:
             analysis.append("Decodes Base64 string")
 
-        # Add more specific command/expression analyses as needed
+
 
     # Check if the variable contains a URL
     elif re.match(r"https?://", var_value):
@@ -986,7 +986,7 @@ def analyze_powershell(powershell_script):
     if 'Set-PSDebug' in powershell_script or 'Set-StrictMode' in powershell_script:
         print("Script attempts to modify PowerShell debugging or strict mode.")
 
-# The main function remains unchanged
+# The main function
 def main():
     if len(sys.argv) != 2:
         print(f"{Fore.RED}Usage: python script.py <path_to_powershell_script>")
@@ -1002,6 +1002,6 @@ def main():
     except Exception as e:
         print(f"{Fore.RED}An error occurred: {str(e)}")
 
-# Add this line at the end of your script
+
 if __name__ == "__main__":
     main()

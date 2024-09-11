@@ -15,27 +15,26 @@ result_queue = Queue()
 
 
 def decode_base64_command(powershell_script):
-    """Decode base64-encoded PowerShell commands if present"""
-    # Updated pattern to catch more encoding flags
-    base64_pattern = r'powershell\s+(?:-e|-ec|-en|-enc|-enco|-encod|-encode|-encoded|-encodedcommand|/e|/ec|/en|/enc|/enco|/encod|/encode|/encoded|/encodedcommand)\s+([A-Za-z0-9+/=]+)'
-    matches = re.findall(base64_pattern, powershell_script, re.IGNORECASE)
-    
-    if matches:
-        print(f"{Fore.YELLOW}Base64 encoded command(s) detected. Decoding...{Style.RESET_ALL}")
-        for encoded_command in matches:
-            try:
-                # Ensure padding
-                padding = len(encoded_command) % 4
-                if padding:
-                    encoded_command += '=' * (4 - padding)
-                
-                decoded_command = base64.b64decode(encoded_command).decode('utf-16-le')
-                print(f"{Fore.GREEN}Decoded command:{Style.RESET_ALL}")
-                print(decoded_command)
-                print(f"{Fore.YELLOW}Analyzing decoded command...{Style.RESET_ALL}")
-                analyze_powershell(decoded_command)
-            except Exception as e:
-                print(f"{Fore.RED}Error decoding base64 command: {str(e)}{Style.RESET_ALL}")
+    """Decode a base64-encoded PowerShell command"""
+    try:
+        # Remove any whitespace and the 'powershell -EC' prefix if present
+        cleaned_command = powershell_script.split()[-1]
+        
+        # Decode the Base64 string
+        decoded_bytes = base64.b64decode(cleaned_command)
+        
+        # Convert the bytes to a string using UTF-16 Little Endian encoding
+        decoded_command = decoded_bytes.decode('utf-16-le')
+        return decoded_command
+    except Exception as e:
+        return f"Error decoding command: {str(e)}"
+
+def is_base64(s):
+    try:
+        # Check if the string is Base64 encoded
+        return base64.b64encode(base64.b64decode(s)).decode() == s
+    except Exception:
+        return False
 
 MITRE_MAPPINGS = {
     # Credential Access
@@ -86,23 +85,12 @@ MITRE_MAPPINGS = {
     r'ConvertTo-SID|ConvertFrom-SID': 'T1087 - Account Discovery',
 }
 
-def detect_mitre_atomic(powershell_code):
+def detect_mitre_atomic(powershell_script):
     detected_techniques = set()
     for pattern, technique in MITRE_MAPPINGS.items():
-        if re.search(pattern, powershell_code, re.IGNORECASE):
+        if re.search(pattern, powershell_script, re.IGNORECASE):
             detected_techniques.add(technique)
     return list(detected_techniques)
-
-def analyze_powershell(powershell_script):
-    # First, check for and decode any base64 encoded commands
-    decode_base64_command(powershell_script)
-    
-    variables = extract_variables(powershell_script)
-    replaced_script = replace_variables(powershell_script, variables)
-
-    print(f"{Fore.GREEN}{Style.BRIGHT}Original Script:{Style.RESET_ALL}")
-    print(powershell_script)
-
 
 def fetch_cmdlet_from_url(cmdlet, base_url):
     """Fetches cmdlet information from a specific base URL."""
@@ -954,16 +942,33 @@ def check_windows_exe_mimicry(powershell_script):
     return mimicry_attempts
 
 
+
 def analyze_powershell(powershell_script):
+    original_script = powershell_script
+    is_encoded = False
+
+    # Check if the script is Base64 encoded
+    if is_base64(powershell_script) or powershell_script.strip().lower().startswith('powershell -ec'):
+        print(f"{Fore.YELLOW}Detected Base64 encoded command. Decoding...{Style.RESET_ALL}")
+        decoded_script = decode_base64_command(powershell_script)
+        if not decoded_script.startswith("Error decoding command:"):
+            powershell_script = decoded_script
+            is_encoded = True
+        else:
+            print(f"{Fore.RED}{decoded_script}{Style.RESET_ALL}")
+            return  # Exit if decoding failed
+
     variables = extract_variables(powershell_script)
     replaced_script = replace_variables(powershell_script, variables)
 
     print(f"{Fore.GREEN}{Style.BRIGHT}Original Script:{Style.RESET_ALL}")
-    print(powershell_script)
+    print(original_script)
+    
+    if is_encoded:
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}Decoded Script:{Style.RESET_ALL}")
+        print(powershell_script)
 
-    print(
-        f"\n{Fore.GREEN}{Style.BRIGHT}Detailed Breakdown of Actions:{Style.RESET_ALL}"
-    )
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Detailed Breakdown of Actions:{Style.RESET_ALL}")
     breakdown = breakdown_script(replaced_script)
     for item, color in breakdown:
         if item.startswith("Uses"):
@@ -973,9 +978,7 @@ def analyze_powershell(powershell_script):
         else:
             print(f"{color}- {item}")
 
-    print(
-        f"\n{Fore.GREEN}{Style.BRIGHT}MITRE ATT&CK Techniques Detected:{Style.RESET_ALL}"
-    )
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}MITRE ATT&CK Techniques Detected:{Style.RESET_ALL}")
     mitre_techniques = check_mitre_attack_techniques(powershell_script)
     if mitre_techniques:
         for technique_id, description in mitre_techniques:
@@ -985,8 +988,7 @@ def analyze_powershell(powershell_script):
 
     atomic_techniques = detect_mitre_atomic(powershell_script)
     if atomic_techniques:
-        print(f"\n{Fore.GREEN}{Style.BRIGHT}Atomic Techniques Detected:{Style.RESET_ALL}"
-    )
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}Atomic Techniques Detected:{Style.RESET_ALL}")
         for technique in atomic_techniques:
             print(f"- {technique}")
     else:
@@ -1008,9 +1010,7 @@ def analyze_powershell(powershell_script):
     else:
         print(f"{Fore.GREEN}No common malware techniques detected.")
 
-    print(
-        f"\n{Fore.GREEN}{Style.BRIGHT}Persistence Techniques Detected:{Style.RESET_ALL}"
-    )
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Persistence Techniques Detected:{Style.RESET_ALL}")
     persistence_techniques = check_persistence_techniques(powershell_script)
     if persistence_techniques:
         for technique, color in persistence_techniques:
@@ -1018,9 +1018,7 @@ def analyze_powershell(powershell_script):
     else:
         print(f"{Fore.GREEN}No common persistence techniques detected.")
 
-    print(
-        f"\n{Fore.GREEN}{Style.BRIGHT}Windows Executable Mimicry Detected:{Style.RESET_ALL}"
-    )
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Windows Executable Mimicry Detected:{Style.RESET_ALL}")
     mimicry_attempts = check_windows_exe_mimicry(powershell_script)
     if mimicry_attempts:
         for attempt, color in mimicry_attempts:
@@ -1036,7 +1034,24 @@ def analyze_powershell(powershell_script):
         print(f"{Fore.MAGENTA}  Purpose: {info['purpose']}")
         print()
 
+    # Check for obfuscation
+    if re.search(r'\w+\s*\+\s*\w+', powershell_script):
+        print("Possible string concatenation obfuscation detected.")
+    
+    if re.search(r'(\[char\](\d+|\$\w+)\s*\+?)+', powershell_script):
+        print("Possible character code obfuscation detected.")
 
+    # Check for less common but powerful cmdlets
+    powerful_cmdlets = ['Invoke-WmiMethod', 'Add-MpPreference', 'New-PSDrive', 'Out-MinidumpXXX']
+    for cmdlet in powerful_cmdlets:
+        if cmdlet in powershell_script:
+            print(f"Powerful cmdlet detected: {cmdlet}")
+
+    # Check for script block and module logging
+    if 'Set-PSDebug' in powershell_script or 'Set-StrictMode' in powershell_script:
+        print("Script attempts to modify PowerShell debugging or strict mode.")
+
+# The main function remains unchanged
 def main():
     if len(sys.argv) != 2:
         print(f"{Fore.RED}Usage: python script.py <path_to_powershell_script>")
@@ -1051,6 +1066,10 @@ def main():
         print(f"{Fore.RED}Error: File '{ps1_file_path}' not found.")
     except Exception as e:
         print(f"{Fore.RED}An error occurred: {str(e)}")
+
+# Add this line at the end of your script
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":

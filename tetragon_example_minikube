@@ -19,7 +19,7 @@ Here's a compilation of the commands that worked in setting up Tetragon:
 
 4. Create Tetragon manifest file:
    ```bash
-   cat << EOF > tetragon-manifest.yaml
+   vim tetragon-manifest.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -77,7 +77,6 @@ spec:
     - protocol: TCP
       port: 54321
       targetPort: 54321
-   EOF
    ```
 
 5. Apply Tetragon manifest:

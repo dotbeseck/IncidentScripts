@@ -1,0 +1,111 @@
+
+Here's a compilation of the commands that worked in setting up Tetragon:
+
+1. Start minikube with CNI support:
+   ```bash
+   minikube start --network-plugin=cni --memory=4096
+   ```
+
+2. Install Cilium using Helm:
+   ```bash
+   helm repo add cilium https://helm.cilium.io/
+   helm install cilium cilium/cilium --namespace kube-system
+   ```
+
+3. Wait for Cilium pods to be ready:
+   ```bash
+   kubectl wait --for=condition=ready pod -l k8s-app=cilium -n kube-system --timeout=90s
+   ```
+
+4. Create Tetragon manifest file:
+   ```bash
+   cat << EOF > tetragon-manifest.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tetragon
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tetragon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tetragon
+    spec:
+      containers:
+      - name: tetragon
+        image: quay.io/cilium/tetragon:v1.2.0
+        imagePullPolicy: IfNotPresent
+        command: ["/usr/bin/tetragon"]
+        args:
+          - "--btf=/sys/kernel/btf/vmlinux"
+          - "--procfs=/host/proc"
+          - "--server-address=localhost:54321"
+          - "--tracing-policy-dir=/etc/tetragon/tetragon.tp.d"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: bpf-fs
+            mountPath: /sys/fs/bpf
+          - name: proc
+            mountPath: /host/proc
+          - name: config
+            mountPath: /etc/tetragon
+      volumes:
+        - name: bpf-fs
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tetragon
+  namespace: kube-system
+spec:
+  selector:
+    app.kubernetes.io/name: tetragon
+  ports:
+    - protocol: TCP
+      port: 54321
+      targetPort: 54321
+   EOF
+   ```
+
+5. Apply Tetragon manifest:
+   ```bash
+   kubectl apply -f tetragon-manifest.yaml
+   ```
+
+6. Verify Tetragon pods are running:
+   ```bash
+   kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon
+   ```
+
+7. Set up port-forwarding for Tetragon:
+   ```bash
+   kubectl port-forward -n kube-system service/tetragon 54321:54321
+   ```
+
+
+kubectl apply -f https://raw.githubusercontent.com/cilium/tetragon/main/pkg/k8s/apis/cilium.io/client/crds/v1alpha1/cilium.io_tracingpolicies.yaml
+
+
+
+8. Check Tetragon status (in a new terminal):
+   ```bash
+   tetra status
+   ```
+
+9. Stream Tetragon events:
+   ```bash
+   tetra getevents
+   ```

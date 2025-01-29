@@ -292,7 +292,7 @@ def check_port_security(ports):
     """Check ports for security concerns"""
     concerns = []
     suspicious_ports = [22, 23, 3389, 445, 135, 137, 138, 139, 161, 162, 389, 636,
-                       1433, 1521, 3306, 5432, 6379, 27017, 28017]
+                       1433, 1521, 3306, 5432, 6379, 27017, 28017, 9443]
     
     for port_info in ports:
         port = port_info['port']
@@ -366,6 +366,71 @@ def check_security_concerns(obj):
                 
                 if not mount.get('readOnly', False):
                     concerns.append(f"Writeable volume mount: {mount_path} [container: {container_name}]")
+        # Image Checks
+        # Privilege Escalation Check
+        if security_context.get('allowPrivilegeEscalation') == True:
+            concerns.append(f"Container allows privilege escalation [container: {container_name}]")
+
+        # Privileged Container Check
+        if security_context.get('privileged') == True:
+            concerns.append(f"Container runs in privileged mode [container: {container_name}]")
+
+        # Read-only Root Filesystem Check
+        if security_context.get('readOnlyRootFilesystem') == False:
+            concerns.append(f"Container root filesystem is not read-only [container: {container_name}]")
+
+        # Security Context Drop Capabilities Check
+        if isinstance(capabilities, dict):
+            if not capabilities.get('drop') or 'ALL' not in capabilities.get('drop', []):
+                concerns.append(f"Container does not drop all capabilities by default [container: {container_name}]")
+
+        # Resource Quota Checks (more specific)
+        resources = container.get('resources', {})
+        if not resources:
+            concerns.append(f"No resource constraints specified [container: {container_name}]")
+        else:
+            limits = resources.get('limits', {})
+            requests = resources.get('requests', {})
+           
+            if not limits.get('cpu'):
+                concerns.append(f"No CPU limit set [container: {container_name}]")
+            if not limits.get('memory'):
+                concerns.append(f"No memory limit set [container: {container_name}]")
+            if not requests.get('cpu'):
+                concerns.append(f"No CPU request set [container: {container_name}]")
+            if not requests.get('memory'):
+                concerns.append(f"No memory request set [container: {container_name}]")
+
+        # Liveness/Readiness Probe Checks
+        if not container.get('livenessProbe'):
+            concerns.append(f"No liveness probe configured [container: {container_name}]")
+        if not container.get('readinessProbe'):
+            concerns.append(f"No readiness probe configured [container: {container_name}]")
+
+        # Specific Environment Variable Checks
+        env_vars = container.get('env', [])
+        sensitive_env_names = ['AWS_', 'KUBE_', 'PASS', 'SECRET', 'KEY', 'TOKEN', 'CREDENTIAL']
+        for env in env_vars:
+            if isinstance(env, dict) and 'name' in env:
+                env_name = env['name']
+                if any(sensitive in env_name.upper() for sensitive in sensitive_env_names):
+                    concerns.append(f"Potentially sensitive environment variable used: {env_name} [container: {container_name}]")
+        image = container.get('image', '')
+        if isinstance(image, str):
+            if ':latest' in image or not ':' in image:
+                concerns.append(f"Using latest/floating tag [container: {container_name}]")
+            if not image.startswith(('*.dkr.ecr.us-gov-east-1.amazonaws.com')):
+                concerns.append(f"Image from untrusted registry: {image} [container: {container_name}]")
+
+        # Resource Limit Checks
+        resources = extract_field_recursive(container, 'resources')
+        for resource in resources:
+            if isinstance(resource, dict):
+                if not resource.get('limits'):
+                    concerns.append(f"No resource limits set [container: {container_name}]")
+                if not resource.get('requests'):
+                    concerns.append(f"No resource requests set [container: {container_name}]")
+
 
         # Command and Args Checks using enhanced extraction
         dangerous_commands = ['curl', 'wget', 'nc', 'ncat', 'netcat', 'nmap', 'ssh', 'telnet',
@@ -432,6 +497,7 @@ def check_security_concerns(obj):
                 concerns.append(f"Writable hostPath volume: {volume.get('name', 'unknown')}")
 
     # Other pod-level checks
+
     spec = obj.get('spec', {})
     if isinstance(spec, str):
         spec = parse_k8s_field(spec)
@@ -452,6 +518,39 @@ def check_security_concerns(obj):
     # Label Checks
     if not metadata.get('labels'):
         concerns.append("Resource has no labels")
+
+    # Pod Security Policy Checks
+    if not metadata.get('annotations', {}).get('kubernetes.io/psp'):
+        concerns.append("No Pod Security Policy specified")
+
+    # Priority Class Check
+    if not spec.get('priorityClassName'):
+        concerns.append("No PriorityClass set")
+
+    # Service Account Name Check
+    if spec.get('serviceAccountName') == 'default':
+        concerns.append("Using default ServiceAccount")
+
+    # Host Aliases Check
+    if spec.get('hostAliases'):
+        concerns.append("Pod contains host aliases")
+
+    # DNS Policy and Config Checks
+    if spec.get('dnsPolicy') == 'ClusterFirstWithHostNet':
+        concerns.append("Pod uses host network DNS policy")
+
+    # Topology Spread Constraints
+    if not spec.get('topologySpreadConstraints'):
+        concerns.append("No topology spread constraints defined")
+
+    # Security Context Additional Checks
+    if pod_security:
+        if pod_security.get('sysctls'):
+            concerns.append("Pod modifies system settings through sysctls")
+        if pod_security.get('fsGroup') == 0:
+            concerns.append("Pod uses root fsGroup")
+        if pod_security.get('supplementalGroups') and 0 in pod_security.get('supplementalGroups', []):
+            concerns.append("Pod uses root supplemental group")
 
     return concerns
 

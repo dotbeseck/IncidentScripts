@@ -1178,7 +1178,12 @@ def analyze_powershell(powershell_script):
     if executed_vars:
         for var_name in executed_vars:
             executed_content = transformed_variables[var_name]["current"]
-            if len(executed_content) > 50 and ('
+            # Check if the content is substantial and likely PowerShell code
+            if len(executed_content) > 50 and (
+                "$" in executed_content or 
+                "function" in executed_content.lower() or
+                "invoke" in executed_content.lower()
+            ):
                 print(f"\n{Fore.RED}{Style.BRIGHT}SECONDARY ANALYSIS OF EXECUTED CONTENT (${var_name}):{Style.RESET_ALL}")
                 print(f"{Fore.YELLOW}Note: Recursively analyzing the content that will be executed:{Style.RESET_ALL}")
                 try:

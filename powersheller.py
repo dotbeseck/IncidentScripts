@@ -1048,7 +1048,11 @@ def analyze_powershell(powershell_script):
     # Process transformed variables (including the complex pattern in your uploaded file)
     transformed_variables = process_variable_transformations(variables, powershell_script)
     
-    # Print variable information
+    # Find variables that are executed
+    executed_vars = []
+    for var_name, info in transformed_variables.items():
+        if any("EXECUTED" in t for t in info["transformations"]):
+            executed_vars.append(var_name)
     print(f"\n{Fore.GREEN}{Style.BRIGHT}Variables Found ({len(variables)}):{Style.RESET_ALL}")
     for var_name, var_value in variables.items():
         print(f"{Fore.CYAN}${var_name} = {Fore.YELLOW}{var_value[:100]}{'...' if len(var_value) > 100 else ''}")

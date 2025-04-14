@@ -1,4 +1,45 @@
-import re
+def process_variable_transformations(variables, powershell_script):
+    """Process complex variable transformations including split-hex conversions"""
+    transformed_variables = {}
+    
+    for var_name, var_value in variables.items():
+        transformed_variables[var_name] = {
+            "original": var_value,
+            "current": var_value,
+            "transformations": []
+        }
+    
+    # Look for variable transformations
+    # Focus on the pattern in your uploaded file
+    for line in powershell_script.split(';'):
+        # Look for transformations in the format:
+        # $var1 = ($var2 -split 'pattern' | % { transform }) -join ''
+        if "-split" in line and "[char]" in line and "ToInt32" in line:
+            # Extract variable names
+            target_match = re.search(r'\$(\w+)\s*=', line)
+            source_match = re.search(r'=\s*\(\$(\w+)\s*-split', line)
+            
+            if target_match and source_match:
+                target_var = target_match.group(1)
+                source_var = source_match.group(1)
+                
+                # Check if source variable exists
+                if source_var in variables:
+                    # Extract the base for conversion
+                    base_match = re.search(r'ToInt32\(\$_\s*,\s*(\d+)\)', line)
+                    base = 16  # Default to hex
+                    if base_match:
+                        base = int(base_match.group(1))
+                    
+                    source_value = variables[source_var]
+                    
+                    # Handle hex pair conversion
+                    try:
+                        # Split into pairs of characters
+                        hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
+                        chars = []
+                        for pair in hex_pairs:
+                            if pair:  # Ensure we haveimport re
 import requests
 import sys
 from bs4 import BeautifulSoup
@@ -137,8 +178,21 @@ def decode_base64_command(powershell_script):
         # Remove any whitespace
         encoded_part = encoded_part.strip()
         
+        # Fix padding if needed
+        padding = len(encoded_part) % 4
+        if padding != 0:
+            encoded_part += '=' * (4 - padding)
+        
         # Decode the Base64 string
-        decoded_bytes = base64.b64decode(encoded_part)
+        try:
+            decoded_bytes = base64.b64decode(encoded_part)
+        except Exception as e:
+            # Try an alternative approach - extract only valid base64 characters
+            base64_chars = re.sub(r'[^A-Za-z0-9+/=]', '', encoded_part)
+            padding = len(base64_chars) % 4
+            if padding != 0:
+                base64_chars += '=' * (4 - padding)
+            decoded_bytes = base64.b64decode(base64_chars)
         
         # Try UTF-16-LE first (standard for PowerShell encoding)
         try:
@@ -1124,7 +1178,53 @@ def analyze_powershell(powershell_script):
     if executed_vars:
         for var_name in executed_vars:
             executed_content = transformed_variables[var_name]["current"]
-            if len(executed_content) > 50 and (' in executed_content or 'function' in executed_content.lower()):
+            if len(executed_content) > 50 and ('
+                print(f"\n{Fore.RED}{Style.BRIGHT}SECONDARY ANALYSIS OF EXECUTED CONTENT (${var_name}):{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Note: Recursively analyzing the content that will be executed:{Style.RESET_ALL}")
+                try:
+                    # Recursively analyze the content but with limited output to avoid excessive nesting
+                    secondary_techniques = check_mitre_attack_techniques(executed_content)
+                    if secondary_techniques:
+                        print(f"{Fore.RED}Nested MITRE ATT&CK Techniques:{Style.RESET_ALL}")
+                        for technique_id, description in secondary_techniques:
+                            print(f"{Fore.RED}- {technique_id}: {description}")
+                    
+                    secondary_evasion = check_evasion_techniques(executed_content)
+                    if secondary_evasion:
+                        print(f"{Fore.RED}Nested Evasion Techniques:{Style.RESET_ALL}")
+                        for technique, color in secondary_evasion:
+                            print(f"{color}- {technique}")
+                except Exception as e:
+                    print(f"{Fore.RED}Error during secondary analysis: {str(e)}{Style.RESET_ALL}")
+
+    return {
+        "original_script": original_script,
+        "decoded_script": powershell_script if is_encoded else original_script,
+        "variables": variables,
+        "transformed_variables": transformed_variables,
+        "executed_variables": executed_vars
+    }
+
+
+# Main function
+def main():
+    if len(sys.argv) != 2:
+        print(f"{Fore.RED}Usage: python script.py <path_to_powershell_script>")
+        sys.exit(1)
+
+    ps1_file_path = sys.argv[1]
+    try:
+        with open(ps1_file_path, "r") as file:
+            powershell_script = file.read()
+        analyze_powershell(powershell_script)
+    except FileNotFoundError:
+        print(f"{Fore.RED}Error: File '{ps1_file_path}' not found.")
+    except Exception as e:
+        print(f"{Fore.RED}An error occurred: {str(e)}")
+
+
+if __name__ == "__main__":
+    main() in executed_content or 'function' in executed_content.lower()):
                 print(f"\n{Fore.RED}{Style.BRIGHT}SECONDARY ANALYSIS OF EXECUTED CONTENT (${var_name}):{Style.RESET_ALL}")
                 print(f"{Fore.YELLOW}Note: Recursively analyzing the content that will be executed:{Style.RESET_ALL}")
                 try:

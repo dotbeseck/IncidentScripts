@@ -119,116 +119,53 @@ common_cmdlets = {
 def decode_base64_command(powershell_script):
     """Decode a base64-encoded PowerShell command"""
     try:
-        # Remove any whitespace and the 'powershell -EC' prefix if present
-        cleaned_command = powershell_script.split()[-1]
+        # Check if this is a powershell command with -EncodedCommand/-E flag
+        if re.search(r'powershell(.exe)?\s+(.+\s)?(-e|-ec|-encodedcommand)\s+', 
+                     powershell_script, re.IGNORECASE):
+            # Extract the base64 part after the flag
+            match = re.search(r'(-e|-ec|-encodedcommand)\s+([A-Za-z0-9+/=]+)', 
+                              powershell_script, re.IGNORECASE)
+            if match:
+                encoded_part = match.group(2)
+            else:
+                # Just take the last part of the command as potential base64
+                encoded_part = powershell_script.split()[-1]
+        else:
+            # If no clear powershell command structure, assume the whole string might be base64
+            encoded_part = powershell_script
+        
+        # Remove any whitespace
+        encoded_part = encoded_part.strip()
         
         # Decode the Base64 string
-        decoded_bytes = base64.b64decode(cleaned_command)
+        decoded_bytes = base64.b64decode(encoded_part)
         
-        # Convert the bytes to a string using UTF-16 Little Endian encoding
-        decoded_command = decoded_bytes.decode('utf-16-le')
-        return decoded_command
+        # Try UTF-16-LE first (standard for PowerShell encoding)
+        try:
+            decoded_command = decoded_bytes.decode('utf-16-le')
+            return decoded_command
+        except UnicodeDecodeError:
+            # Fall back to UTF-8 if UTF-16-LE fails
+            try:
+                decoded_command = decoded_bytes.decode('utf-8')
+                return decoded_command
+            except UnicodeDecodeError:
+                return f"Error decoding command: Unable to decode with UTF-16-LE or UTF-8"
     except Exception as e:
         return f"Error decoding command: {str(e)}"
 
 def is_base64(s):
+    """Check if a string is likely base64 encoded"""
     try:
-        # Check if the string is Base64 encoded
-        return base64.b64encode(base64.b64decode(s)).decode() == s
+        # Check if the string contains only valid base64 characters and has valid padding
+        if not re.match(r'^[A-Za-z0-9+/]*={0,2}$', s):
+            return False
+        
+        # Try to decode it
+        base64.b64decode(s)
+        return True
     except Exception:
         return False
-
-def decode_complex_powershell(powershell_script):
-    """Handle more complex PowerShell deobfuscation techniques"""
-    # First decode any base64 encoding
-    if is_base64(powershell_script) or "-E " in powershell_script:
-        decoded_script = decode_base64_command(powershell_script)
-        if not decoded_script.startswith("Error decoding command:"):
-            powershell_script = decoded_script
-    
-    # Track variable transformations
-    variables = extract_variables(powershell_script)
-    variable_transformations = {}
-    
-    # Identify string manipulation patterns
-    for var_name, var_value in variables.items():
-        # Track original value
-        variable_transformations[var_name] = {
-            "original": var_value,
-            "current": var_value,
-            "transformations": []
-        }
-        
-        # Look for transformations applied to this variable
-        # Split operations
-        split_pattern = re.compile(rf"\${var_name}\s*-split\s*['\"](.*?)['\"]")
-        split_matches = split_pattern.findall(powershell_script)
-        if split_matches:
-            for pattern in split_matches:
-                try:
-                    parts = re.split(pattern, variable_transformations[var_name]["current"])
-                    variable_transformations[var_name]["current"] = parts
-                    variable_transformations[var_name]["transformations"].append(f"Split using pattern: {pattern}")
-                except Exception as e:
-                    variable_transformations[var_name]["transformations"].append(f"Failed to apply split: {str(e)}")
-        
-        # Join operations
-        join_pattern = re.compile(rf"\${var_name}\s*-join\s*['\"](.*?)['\"]")
-        join_matches = join_pattern.findall(powershell_script)
-        if join_matches:
-            for separator in join_matches:
-                try:
-                    if isinstance(variable_transformations[var_name]["current"], list):
-                        variable_transformations[var_name]["current"] = separator.join(variable_transformations[var_name]["current"])
-                    variable_transformations[var_name]["transformations"].append(f"Joined using separator: {separator}")
-                except Exception as e:
-                    variable_transformations[var_name]["transformations"].append(f"Failed to apply join: {str(e)}")
-        
-        # Character conversion ([char] operations)
-        char_conv_pattern = re.compile(rf"\[char\]\(\[convert\]::ToInt32\(\${var_name},(.*?)\)\)")
-        char_matches = char_conv_pattern.findall(powershell_script)
-        if char_matches:
-            for base in char_matches:
-                try:
-                    base = int(base.strip())
-                    if isinstance(variable_transformations[var_name]["current"], str) and variable_transformations[var_name]["current"].isdigit():
-                        char_val = chr(int(variable_transformations[var_name]["current"], base))
-                        variable_transformations[var_name]["current"] = char_val
-                        variable_transformations[var_name]["transformations"].append(f"Converted to character using base {base}")
-                except Exception as e:
-                    variable_transformations[var_name]["transformations"].append(f"Failed to convert character: {str(e)}")
-    
-    # Look for the specific pattern in your uploaded file
-    special_pattern = re.compile(r"\$(\w+)\s*-split\s*'(?:<\=\\G\.\.)'\|%{\[char\]\(\[convert\]::ToInt32\(\$_,16\)\)}")
-    special_matches = special_pattern.findall(powershell_script)
-    
-    for var_name in special_matches:
-        if var_name in variables:
-            try:
-                # This attempts to handle the pattern in your file 
-                # Splitting hex values and converting to characters
-                hex_values = re.split(r'(?<=\G..)', variables[var_name])
-                chars = [chr(int(h, 16)) for h in hex_values if h]
-                result = ''.join(chars)
-                
-                # Log the transformation
-                if var_name in variable_transformations:
-                    variable_transformations[var_name]["current"] = result
-                    variable_transformations[var_name]["transformations"].append("Processed hex values to characters")
-                else:
-                    variable_transformations[var_name] = {
-                        "original": variables[var_name],
-                        "current": result,
-                        "transformations": ["Processed hex values to characters"]
-                    }
-            except Exception as e:
-                print(f"Error processing special pattern for {var_name}: {str(e)}")
-    
-    return {
-        "deobfuscated_script": powershell_script,
-        "variable_transformations": variable_transformations
-    }
-
 
 def detect_mitre_atomic(powershell_script):
     detected_techniques = set()
@@ -302,7 +239,8 @@ def fetch_cmdlet_info(cmdlet):
 def extract_variables(powershell_script):
     """Extracts variables and their values from the PowerShell script"""
     variables = {}
-    pattern = re.compile(r"\$(\w+)\s*=\s*([^;\n]+)")
+    # Improved pattern to handle more complex variable assignments
+    pattern = re.compile(r"\$(\w+)\s*=\s*([^;\r\n]+)")
     matches = pattern.findall(powershell_script)
 
     for match in matches:
@@ -315,10 +253,12 @@ def extract_variables(powershell_script):
 def replace_variables(powershell_script, variables):
     """Replaces variables in the script with their actual values"""
     for var_name, var_value in variables.items():
-        var_value_escaped = re.escape(var_value)
-        powershell_script = re.sub(
-            rf"\${var_name}\b", var_value_escaped, powershell_script
-        )
+        # Only replace if the value is a string and not too complex
+        if isinstance(var_value, str) and not var_value.startswith('('):
+            var_value_escaped = re.escape(var_value)
+            powershell_script = re.sub(
+                rf"\${var_name}\b", var_value_escaped, powershell_script
+            )
     return powershell_script
 
 
@@ -381,8 +321,6 @@ def analyze_variable_content(var_name, var_value, powershell_script):
         if "FromBase64String" in var_value:
             analysis.append("Decodes Base64 string")
 
-
-
     # Check if the variable contains a URL
     elif re.match(r"https?://", var_value):
         analysis.append("Contains a URL")
@@ -394,6 +332,10 @@ def analyze_variable_content(var_name, var_value, powershell_script):
     # Check if the variable contains a file path
     elif "\\" in var_value or "/" in var_value:
         analysis.append("Contains a file path")
+
+    # Check if the variable contains hex-encoded data (like in the example)
+    elif re.match(r"^[0-9A-Fa-f]{20,}$", var_value):
+        analysis.append("Contains hex-encoded data")
 
     # Analyze how the variable is used in the script
     usage_analysis = []
@@ -413,6 +355,14 @@ def analyze_variable_content(var_name, var_value, powershell_script):
         powershell_script,
     ):
         usage_analysis.append("Used in registry operations")
+
+    # Check if variable is used in a split and convert operation
+    if re.search(rf"\$\w+\s*=\s*\(\${var_name}\s*-split", powershell_script):
+        usage_analysis.append("Used as source for string splitting")
+
+    # Check if variable is executed
+    if re.search(rf"&\s*\${var_name}", powershell_script):
+        usage_analysis.append("EXECUTED as a command")
 
     if usage_analysis:
         analysis.extend(usage_analysis)
@@ -487,206 +437,13 @@ def breakdown_script(powershell_script):
 
     return breakdown
 
-def decode_hex_pairs(hex_string):
-    """Decode a string of hex pairs to ASCII characters"""
-    try:
-        # Remove any whitespace
-        hex_string = hex_string.replace(" ", "")
-        
-        # Split into pairs of characters
-        pattern = r'.{1,2}'
-        hex_pairs = re.findall(pattern, hex_string)
-        
-        # Convert each pair from hex to ASCII
-        result = ""
-        for pair in hex_pairs:
-            if len(pair) == 2:  # Ensure we have a complete pair
-                try:
-                    char_code = int(pair, 16)
-                    result += chr(char_code)
-                except ValueError:
-                    result += pair  # Keep the original if not valid hex
-        
-        return result
-    except Exception as e:
-        return f"Error decoding hex pairs: {str(e)}"
-
-def handle_split_hex_conversion(var_value):
-    """Handle the split with (?<=\\G..) pattern followed by hex conversion"""
-    try:
-        # Split the string into pairs of characters
-        hex_pairs = [var_value[i:i+2] for i in range(0, len(var_value), 2)]
-        
-        # Convert each pair from hex to ASCII
-        result = ""
-        for pair in hex_pairs:
-            if pair:  # Ensure we have a non-empty string
-                char_code = int(pair, 16)
-                result += chr(char_code)
-        
-        return result
-    except Exception as e:
-        return f"Error handling split hex conversion: {str(e)}"
-
-def process_variable_references(variables, powershell_script):
-    """Process variables that reference other variables and track their transformations"""
-    processed_variables = {}
-    transformation_graph = {}
-    
-    # First pass - collect all variables and their initial values
-    for var_name, var_value in variables.items():
-        processed_variables[var_name] = {
-            "original": var_value,
-            "current": var_value,
-            "transformations": []
-        }
-        transformation_graph[var_name] = []
-    
-    # Find variable dependencies
-    for var_name in variables:
-        # Look for instances where this variable is used in defining other variables
-        for target_var in variables:
-            if target_var != var_name:
-                # Check if var_name is referenced in the definition of target_var
-                pattern = re.compile(rf"\${re.escape(var_name)}\b")
-                if pattern.search(variables[target_var]) or pattern.search(powershell_script):
-                    # Look for direct assignments
-                    direct_assignment = re.search(
-                        rf"\$({target_var})\s*=\s*\$({var_name})", 
-                        powershell_script
-                    )
-                    if direct_assignment:
-                        transformation_graph[target_var].append({
-                            "source": var_name,
-                            "operation": "direct_assignment"
-                        })
-                        continue
-                    
-                    # Check for split operations
-                    split_operation = re.search(
-                        rf"\$({target_var})\s*=\s*\(\$({var_name})\s*-split\s*['\"](.*?)['\"]", 
-                        powershell_script
-                    )
-                    if split_operation:
-                        split_pattern = split_operation.group(3)
-                        transformation_graph[target_var].append({
-                            "source": var_name,
-                            "operation": "split",
-                            "pattern": split_pattern
-                        })
-                        continue
-                    
-                    # Check for the complex pattern in your file
-                    complex_pattern = re.search(
-                        rf"\$({target_var})\s*=\s*\(\$({var_name})\s*-split\s*['\"](.*?)['\"](?:\s*\|\s*%\s*{\s*\[char\]\(\[convert\]::ToInt32\(\$_,(\d+)\)\)\s*})", 
-                        powershell_script
-                    )
-                    if complex_pattern:
-                        split_pattern = complex_pattern.group(3)
-                        base = complex_pattern.group(4)
-                        transformation_graph[target_var].append({
-                            "source": var_name,
-                            "operation": "split_and_convert",
-                            "split_pattern": split_pattern,
-                            "base": int(base)
-                        })
-                        continue
-    
-    # Process the transformations in order
-    processed_order = []
-    visited = set()
-    
-    def process_dependencies(node):
-        if node in visited:
-            return
-        visited.add(node)
-        for dep in transformation_graph[node]:
-            process_dependencies(dep["source"])
-        processed_order.append(node)
-    
-    for var_name in variables:
-        process_dependencies(var_name)
-    
-    # Now apply the transformations in the correct order
-    for var_name in processed_order:
-        for transformation in transformation_graph[var_name]:
-            source_var = transformation["source"]
-            operation = transformation["operation"]
-            
-            if operation == "direct_assignment":
-                processed_variables[var_name]["current"] = processed_variables[source_var]["current"]
-                processed_variables[var_name]["transformations"].append(
-                    f"Assigned directly from ${source_var}"
-                )
-            
-            elif operation == "split":
-                try:
-                    pattern = transformation["pattern"]
-                    source_value = processed_variables[source_var]["current"]
-                    result = re.split(pattern, source_value)
-                    processed_variables[var_name]["current"] = result
-                    processed_variables[var_name]["transformations"].append(
-                        f"Split from ${source_var} using pattern '{pattern}'"
-                    )
-                except Exception as e:
-                    processed_variables[var_name]["transformations"].append(
-                        f"Failed to apply split from ${source_var}: {str(e)}"
-                    )
-            
-            elif operation == "split_and_convert":
-                try:
-                    split_pattern = transformation["split_pattern"]
-                    base = transformation["base"]
-                    source_value = processed_variables[source_var]["current"]
-                    
-                    # Handle the specific pattern from your file
-                    if split_pattern == "(?<=\\G..)":
-                        # Split into pairs and convert from hex
-                        hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
-                        chars = []
-                        for pair in hex_pairs:
-                            if pair:  # Ensure we have a non-empty string
-                                try:
-                                    char_code = int(pair, base)
-                                    chars.append(chr(char_code))
-                                except ValueError:
-                                    chars.append(pair)  # Keep original if conversion fails
-                        
-                        result = ''.join(chars)
-                        processed_variables[var_name]["current"] = result
-                        processed_variables[var_name]["transformations"].append(
-                            f"Split from ${source_var} into pairs, converted from base {base} to characters, and joined"
-                        )
-                    else:
-                        # Handle other patterns
-                        parts = re.split(split_pattern, source_value)
-                        chars = []
-                        for part in parts:
-                            if part:  # Ensure we have a non-empty string
-                                try:
-                                    char_code = int(part, base)
-                                    chars.append(chr(char_code))
-                                except ValueError:
-                                    chars.append(part)  # Keep original if conversion fails
-                        
-                        result = ''.join(chars)
-                        processed_variables[var_name]["current"] = result
-                        processed_variables[var_name]["transformations"].append(
-                            f"Split from ${source_var} using pattern '{split_pattern}', converted from base {base} to characters, and joined"
-                        )
-                except Exception as e:
-                    processed_variables[var_name]["transformations"].append(
-                        f"Failed to apply split and convert from ${source_var}: {str(e)}"
-                    )
-    
-    return processed_variables
 
 def check_mitre_attack_techniques(powershell_script):
     """Check for common MITRE ATT&CK techniques"""
     techniques = []
 
     # T1059.001 - PowerShell
-    if re.search(r"-[eE]nc[oO]ded[cC]ommand", powershell_script):
+    if re.search(r"-[eE]nc[oO]ded[cC]ommand|-[eE]", powershell_script):
         techniques.append(("T1059.001", "PowerShell: Use of encoded commands"))
 
     # T1003 - Credential Dumping
@@ -866,7 +623,7 @@ def check_evasion_techniques(powershell_script):
 
     # Check for obfuscated commands
     if re.search(
-        r"\-[eE][nN][cC][oO][dD][eE][dD][cC][oO][mM][mM][aA][nN][dD]", powershell_script
+        r"\-[eE][nN][cC][oO][dD][eE][dD][cC][oO][mM][mM][aA][nN][dD]|-[eE]", powershell_script
     ):
         evasion_techniques.append(("Use of encoded commands", Fore.RED))
 
@@ -877,7 +634,7 @@ def check_evasion_techniques(powershell_script):
         evasion_techniques.append(("Attempt to bypass execution policy", Fore.RED))
 
     # Check for hidden window execution
-    if re.search(r"-[wW]indow[sS]tyle\s+[hH]idden", powershell_script):
+    if re.search(r"-[wW]indow[sS]tyle\s+[hH]idden|-[wW]\s+[hH]", powershell_script):
         evasion_techniques.append(("Attempt to run with hidden window", Fore.RED))
 
     # Check for use of aliases to obfuscate cmdlets
@@ -929,6 +686,10 @@ def check_evasion_techniques(powershell_script):
     # Check for use of reflection to load assemblies
     if re.search(r"\[Reflection.Assembly\]::Load", powershell_script):
         evasion_techniques.append(("Use of reflection to load assemblies", Fore.YELLOW))
+        
+    # Check for hex string conversion techniques
+    if re.search(r"-split\s*['\"](?:\(\?<=\\\\G\\.\\.\)|.)['\"].*\[convert\]::ToInt32", powershell_script):
+        evasion_techniques.append(("Hex string conversion obfuscation technique", Fore.RED))
 
     return evasion_techniques
 
@@ -1029,6 +790,12 @@ def check_malware_techniques(powershell_script):
     ):
         malware_techniques.append(
             ("Gathering system information (possible sandbox evasion)", Fore.YELLOW)
+        )
+        
+    # Check for execution of decoded variable content
+    if re.search(r"&\s*\$\w+", powershell_script):
+        malware_techniques.append(
+            ("Execution of variable content (possible obfuscated payload)", Fore.RED)
         )
 
     return malware_techniques
@@ -1160,13 +927,105 @@ def check_windows_exe_mimicry(powershell_script):
     return mimicry_attempts
 
 
+# New functions for enhanced deobfuscation
+
+def decode_hex_pairs(hex_string):
+    """Decode a string of hex pairs to ASCII characters"""
+    try:
+        # Remove any whitespace
+        hex_string = hex_string.replace(" ", "")
+        
+        # Split into pairs of characters
+        hex_pairs = [hex_string[i:i+2] for i in range(0, len(hex_string), 2)]
+        
+        # Convert each pair from hex to ASCII
+        result = ""
+        for pair in hex_pairs:
+            if len(pair) == 2:  # Ensure we have a complete pair
+                try:
+                    char_code = int(pair, 16)
+                    result += chr(char_code)
+                except ValueError:
+                    result += pair  # Keep the original if not valid hex
+        
+        return result
+    except Exception as e:
+        return f"Error decoding hex pairs: {str(e)}"
+
+
+def process_variable_transformations(variables, powershell_script):
+    """Process complex variable transformations including split-hex conversions"""
+    transformed_variables = {}
+    
+    for var_name, var_value in variables.items():
+        transformed_variables[var_name] = {
+            "original": var_value,
+            "current": var_value,
+            "transformations": []
+        }
+    
+    # Look for variable transformations
+    # Focus on the pattern in your uploaded file
+    pattern = re.compile(r'\$(\w+)\s*=\s*\(\$(\w+)\s*-split\s*[\'"]([^\'"]+)[\'"]\s*\|\s*%\s*{\s*\[char\]\(\[convert\]::ToInt32\(\$_\s*,\s*(\d+)\)\)\s*}\s*\)\s*-join\s*[\'"]([^\'"]*)[\'"]')
+    
+    for match in pattern.finditer(powershell_script):
+        target_var = match.group(1)
+        source_var = match.group(2)
+        split_pattern = match.group(3)
+        base = int(match.group(4))
+        join_str = match.group(5)
+        
+        if source_var in variables:
+            try:
+                source_value = variables[source_var]
+                
+                # Special handling for the split pattern in your uploaded file
+                if "(?<=\\G..)" in split_pattern or split_pattern == "(?<=\\G..)":
+                    # Split into pairs and convert from hex
+                    hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
+                    chars = []
+                    for pair in hex_pairs:
+                        if pair:  # Ensure we have a non-empty string
+                            try:
+                                char_code = int(pair, base)
+                                chars.append(chr(char_code))
+                            except ValueError:
+                                chars.append(pair)  # Keep original if conversion fails
+                    
+                    result = join_str.join(chars)
+                    transformed_variables[target_var] = {
+                        "original": variables.get(target_var, ""),
+                        "current": result,
+                        "transformations": [
+                            f"Split {source_var} into hex pairs, converted from base {base} to characters, joined with '{join_str}'"
+                        ]
+                    }
+                else:
+                    # For other split patterns
+                    transformed_variables[target_var]["transformations"].append(
+                        f"Uses complex transform from ${source_var} with pattern '{split_pattern}', but exact processing could not be determined"
+                    )
+            except Exception as e:
+                transformed_variables[target_var]["transformations"].append(
+                    f"Failed to process transformation: {str(e)}"
+                )
+    
+    # Check for variables that are executed
+    for var_name in variables:
+        if re.search(rf'&\s*\${var_name}', powershell_script):
+            if var_name in transformed_variables:
+                transformed_variables[var_name]["transformations"].append("⚠️ THIS VARIABLE IS EXECUTED!")
+    
+    return transformed_variables
+
 
 def analyze_powershell(powershell_script):
+    """Enhanced analysis of PowerShell scripts with better deobfuscation"""
     original_script = powershell_script
     is_encoded = False
 
     # Check if the script is Base64 encoded
-    if is_base64(powershell_script) or powershell_script.strip().lower().startswith('powershell -ec'):
+    if "-E " in powershell_script or powershell_script.strip().lower().startswith('powershell -ec'):
         print(f"{Fore.YELLOW}Detected Base64 encoded command. Decoding...{Style.RESET_ALL}")
         decoded_script = decode_base64_command(powershell_script)
         if not decoded_script.startswith("Error decoding command:"):
@@ -1175,103 +1034,6 @@ def analyze_powershell(powershell_script):
         else:
             print(f"{Fore.RED}{decoded_script}{Style.RESET_ALL}")
             return  # Exit if decoding failed
-    
-        # Extract variables
-    variables = extract_variables(powershell_script)
-    
-    # Process variable references and transformations
-    processed_variables = process_variable_references(variables, powershell_script)
-    
-    # Add a specific check for your example:
-    # Look specifically for the pattern in your uploaded file
-    specific_pattern = re.search(
-        r"\$(\w+)\s*=\s*\(\$(\w+)\s*-split\s*'(?<=\\G\.\.)'\s*\|\s*%\s*{\s*\[char\]\(\[convert\]::ToInt32\(\$_,(\d+)\)\)\s*}\s*\)\s*-join\s*['\"](.*?)['\"]",
-        powershell_script
-    )
-    
-    if specific_pattern:
-        target_var = specific_pattern.group(1)  # cjmsTifRH
-        source_var = specific_pattern.group(2)  # hyHScEf
-        base = int(specific_pattern.group(3))   # 16
-        join_char = specific_pattern.group(4)   # ''
-        
-        if source_var in variables:
-            try:
-                source_value = variables[source_var]
-                # Split into pairs and convert from hex
-                hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
-                chars = []
-                for pair in hex_pairs:
-                    if pair:  # Ensure we have a non-empty string
-                        try:
-                            char_code = int(pair, base)
-                            chars.append(chr(char_code))
-                        except ValueError:
-                            chars.append(pair)  # Keep original if conversion fails
-                
-                result = join_char.join(chars)
-                
-                # Update the processed variables
-                if target_var in processed_variables:
-                    processed_variables[target_var]["current"] = result
-                    processed_variables[target_var]["transformations"].append(
-                        f"Special pattern: Split ${source_var} into pairs, converted from base {base} to characters, and joined with '{join_char}'"
-                    )
-                else:
-                    processed_variables[target_var] = {
-                        "original": variables.get(target_var, ""),
-                        "current": result,
-                        "transformations": [
-                            f"Special pattern: Split ${source_var} into pairs, converted from base {base} to characters, and joined with '{join_char}'"
-                        ]
-                    }
-                
-                # If this variable is later executed, show its content
-                if re.search(rf"&\s*\${target_var}", powershell_script):
-                    print(f"\n{Fore.RED}{Style.BRIGHT}WARNING: Variable ${target_var} appears to be executed!{Style.RESET_ALL}")
-                    print(f"{Fore.YELLOW}Content of ${target_var} that will be executed:{Style.RESET_ALL}")
-                    print(f"{result}")
-            except Exception as e:
-                print(f"{Fore.RED}Error processing special pattern: {str(e)}{Style.RESET_ALL}")
-    
-    # Display the processed variables
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Processed Variables:{Style.RESET_ALL}")
-    for var_name, info in processed_variables.items():
-        print(f"{Fore.CYAN}Variable: ${var_name}")
-        print(f"{Fore.YELLOW}  Original Value: {info['original']}")
-        print(f"{Fore.GREEN}  Processed Value: {info['current']}")
-        for step in info['transformations']:
-            print(f"{Fore.MAGENTA}    - {step}")
-        print()
-    
-    # Try to reconstruct the final deobfuscated script
-    final_script = powershell_script
-    for var_name, info in processed_variables.items():
-        if isinstance(info["current"], str):
-            # Replace the variable with its processed value
-            pattern = rf"\${re.escape(var_name)}\b"
-            final_script = re.sub(pattern, f"'{info['current']}'", final_script)
-    
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Reconstructed Script:{Style.RESET_ALL}")
-    print(final_script)
-        
-        # Handle complex obfuscation
-    complex_deobfuscation = decode_complex_powershell(powershell_script)
-    powershell_script = complex_deobfuscation["deobfuscated_script"]
-    variable_transformations = complex_deobfuscation["variable_transformations"]
-
-    # Display the deobfuscation steps
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Variable Transformations:{Style.RESET_ALL}")
-    for var_name, info in variable_transformations.items():
-        print(f"{Fore.CYAN}Variable: ${var_name}")
-        print(f"{Fore.YELLOW}  Original Value: {info['original']}")
-        print(f"{Fore.GREEN}  Transformed Value: {info['current']}")
-        for step in info['transformations']:
-            print(f"{Fore.MAGENTA}    - {step}")
-        print()
-
-    variables = extract_variables(powershell_script)
-    replaced_script = replace_variables(powershell_script, variables)
 
     print(f"{Fore.GREEN}{Style.BRIGHT}Original Script:{Style.RESET_ALL}")
     print(original_script)
@@ -1280,15 +1042,55 @@ def analyze_powershell(powershell_script):
         print(f"\n{Fore.GREEN}{Style.BRIGHT}Decoded Script:{Style.RESET_ALL}")
         print(powershell_script)
 
+    # Extract and analyze variables
+    variables = extract_variables(powershell_script)
+    
+    # Process transformed variables (including the complex pattern in your uploaded file)
+    transformed_variables = process_variable_transformations(variables, powershell_script)
+    
+    # Print variable information
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Variables Found ({len(variables)}):{Style.RESET_ALL}")
+    for var_name, var_value in variables.items():
+        print(f"{Fore.CYAN}${var_name} = {Fore.YELLOW}{var_value[:100]}{'...' if len(var_value) > 100 else ''}")
+    
+    # Print transformed variables
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Transformed Variables:{Style.RESET_ALL}")
+    for var_name, info in transformed_variables.items():
+        if info["current"] != info["original"] or any("EXECUTED" in t for t in info["transformations"]):
+            print(f"{Fore.CYAN}Variable: ${var_name}")
+            print(f"{Fore.YELLOW}  Original: {info['original'][:50]}{'...' if len(info['original']) > 50 else ''}")
+            print(f"{Fore.GREEN}  Transformed: {info['current'][:150]}{'...' if len(info['current']) > 150 else ''}")
+            for step in info['transformations']:
+                if "EXECUTED" in step:
+                    print(f"{Fore.RED}  {step}")
+                else:
+                    print(f"{Fore.MAGENTA}    - {step}")
+            print()
+    
+    # Show any executed variable content in detail
+    executed_vars = [var_name for var_name, info in transformed_variables.items() 
+                    if any("EXECUTED" in t for t in info["transformations"])]
+    
+    if executed_vars:
+        print(f"\n{Fore.RED}{Style.BRIGHT}EXECUTED CONTENT FOUND!{Style.RESET_ALL}")
+        for var_name in executed_vars:
+            print(f"{Fore.RED}${var_name} appears to be executed with the following content:{Style.RESET_ALL}")
+            content = transformed_variables[var_name]["current"]
+            # If the content appears to be PowerShell, show the first and last parts
+            print(f"{Fore.YELLOW}{content[:500]}")
+            if len(content) > 500:
+                print(f"... [truncated {len(content) - 1000} characters] ...")
+                if len(content) > 1000:
+                    print(f"{content[-500:]}")
+            print()
+    
+    # Traditional analysis continues here
+    variable_info = breakdown_variables(variables, powershell_script)
+    
     print(f"\n{Fore.GREEN}{Style.BRIGHT}Detailed Breakdown of Actions:{Style.RESET_ALL}")
-    breakdown = breakdown_script(replaced_script)
+    breakdown = breakdown_script(powershell_script)
     for item, color in breakdown:
-        if item.startswith("Uses"):
-            entity, description = item.split(":", 1)
-            entity = entity.replace("Uses ", "")
-            print(f"{color}- Uses {Style.BRIGHT}{entity}{Style.NORMAL}:{description}")
-        else:
-            print(f"{color}- {item}")
+        print(f"{color}{item}")
 
     print(f"\n{Fore.GREEN}{Style.BRIGHT}MITRE ATT&CK Techniques Detected:{Style.RESET_ALL}")
     mitre_techniques = check_mitre_attack_techniques(powershell_script)
@@ -1297,14 +1099,6 @@ def analyze_powershell(powershell_script):
             print(f"{Fore.RED}- {technique_id}: {description}")
     else:
         print(f"{Fore.GREEN}No common MITRE ATT&CK techniques detected.")
-
-    atomic_techniques = detect_mitre_atomic(powershell_script)
-    if atomic_techniques:
-        print(f"\n{Fore.GREEN}{Style.BRIGHT}Atomic Techniques Detected:{Style.RESET_ALL}")
-        for technique in atomic_techniques:
-            print(f"- {technique}")
-    else:
-        print(f"{Fore.GREEN} No Atomic Red Team Tactics Found.")
 
     print(f"\n{Fore.GREEN}{Style.BRIGHT}Evasion Techniques Detected:{Style.RESET_ALL}")
     evasion_techniques = check_evasion_techniques(powershell_script)
@@ -1322,48 +1116,39 @@ def analyze_powershell(powershell_script):
     else:
         print(f"{Fore.GREEN}No common malware techniques detected.")
 
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Persistence Techniques Detected:{Style.RESET_ALL}")
-    persistence_techniques = check_persistence_techniques(powershell_script)
-    if persistence_techniques:
-        for technique, color in persistence_techniques:
-            print(f"{color}- {technique}")
-    else:
-        print(f"{Fore.GREEN}No common persistence techniques detected.")
+    # For any transformed content that appears to be executed, try analyzing it as well
+    if executed_vars:
+        for var_name in executed_vars:
+            executed_content = transformed_variables[var_name]["current"]
+            if len(executed_content) > 50 and (' in executed_content or 'function' in executed_content.lower()):
+                print(f"\n{Fore.RED}{Style.BRIGHT}SECONDARY ANALYSIS OF EXECUTED CONTENT (${var_name}):{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Note: Recursively analyzing the content that will be executed:{Style.RESET_ALL}")
+                try:
+                    # Recursively analyze the content but with limited output to avoid excessive nesting
+                    secondary_techniques = check_mitre_attack_techniques(executed_content)
+                    if secondary_techniques:
+                        print(f"{Fore.RED}Nested MITRE ATT&CK Techniques:{Style.RESET_ALL}")
+                        for technique_id, description in secondary_techniques:
+                            print(f"{Fore.RED}- {technique_id}: {description}")
+                    
+                    secondary_evasion = check_evasion_techniques(executed_content)
+                    if secondary_evasion:
+                        print(f"{Fore.RED}Nested Evasion Techniques:{Style.RESET_ALL}")
+                        for technique, color in secondary_evasion:
+                            print(f"{color}- {technique}")
+                except Exception as e:
+                    print(f"{Fore.RED}Error during secondary analysis: {str(e)}{Style.RESET_ALL}")
 
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Windows Executable Mimicry Detected:{Style.RESET_ALL}")
-    mimicry_attempts = check_windows_exe_mimicry(powershell_script)
-    if mimicry_attempts:
-        for attempt, color in mimicry_attempts:
-            print(f"{color}- {attempt}")
-    else:
-        print(f"{Fore.GREEN}No attempts to mimic common Windows executables detected.")
+    return {
+        "original_script": original_script,
+        "decoded_script": powershell_script if is_encoded else original_script,
+        "variables": variables,
+        "transformed_variables": transformed_variables,
+        "executed_variables": executed_vars
+    }
 
-    print(f"\n{Fore.GREEN}{Style.BRIGHT}Detailed Variable Analysis:{Style.RESET_ALL}")
-    variable_info = breakdown_variables(variables, replaced_script)
-    for var_name, info in variable_info.items():
-        print(f"{Fore.CYAN}Variable: ${var_name}")
-        print(f"{Fore.YELLOW}  Value: {info['value']}")
-        print(f"{Fore.MAGENTA}  Purpose: {info['purpose']}")
-        print()
 
-    # Check for obfuscation
-    if re.search(r'\w+\s*\+\s*\w+', powershell_script):
-        print("Possible string concatenation obfuscation detected.")
-    
-    if re.search(r'(\[char\](\d+|\$\w+)\s*\+?)+', powershell_script):
-        print("Possible character code obfuscation detected.")
-
-    # Check for less common but powerful cmdlets
-    powerful_cmdlets = ['Invoke-WmiMethod', 'Add-MpPreference', 'New-PSDrive', 'Out-MinidumpXXX']
-    for cmdlet in powerful_cmdlets:
-        if cmdlet in powershell_script:
-            print(f"Powerful cmdlet detected: {cmdlet}")
-
-    # Check for script block and module logging
-    if 'Set-PSDebug' in powershell_script or 'Set-StrictMode' in powershell_script:
-        print("Script attempts to modify PowerShell debugging or strict mode.")
-
-# The main function
+# Main function
 def main():
     if len(sys.argv) != 2:
         print(f"{Fore.RED}Usage: python script.py <path_to_powershell_script>")

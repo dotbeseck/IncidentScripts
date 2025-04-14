@@ -528,6 +528,159 @@ def handle_split_hex_conversion(var_value):
     except Exception as e:
         return f"Error handling split hex conversion: {str(e)}"
 
+def process_variable_references(variables, powershell_script):
+    """Process variables that reference other variables and track their transformations"""
+    processed_variables = {}
+    transformation_graph = {}
+    
+    # First pass - collect all variables and their initial values
+    for var_name, var_value in variables.items():
+        processed_variables[var_name] = {
+            "original": var_value,
+            "current": var_value,
+            "transformations": []
+        }
+        transformation_graph[var_name] = []
+    
+    # Find variable dependencies
+    for var_name in variables:
+        # Look for instances where this variable is used in defining other variables
+        for target_var in variables:
+            if target_var != var_name:
+                # Check if var_name is referenced in the definition of target_var
+                pattern = re.compile(rf"\${re.escape(var_name)}\b")
+                if pattern.search(variables[target_var]) or pattern.search(powershell_script):
+                    # Look for direct assignments
+                    direct_assignment = re.search(
+                        rf"\$({target_var})\s*=\s*\$({var_name})", 
+                        powershell_script
+                    )
+                    if direct_assignment:
+                        transformation_graph[target_var].append({
+                            "source": var_name,
+                            "operation": "direct_assignment"
+                        })
+                        continue
+                    
+                    # Check for split operations
+                    split_operation = re.search(
+                        rf"\$({target_var})\s*=\s*\(\$({var_name})\s*-split\s*['\"](.*?)['\"]", 
+                        powershell_script
+                    )
+                    if split_operation:
+                        split_pattern = split_operation.group(3)
+                        transformation_graph[target_var].append({
+                            "source": var_name,
+                            "operation": "split",
+                            "pattern": split_pattern
+                        })
+                        continue
+                    
+                    # Check for the complex pattern in your file
+                    complex_pattern = re.search(
+                        rf"\$({target_var})\s*=\s*\(\$({var_name})\s*-split\s*['\"](.*?)['\"](?:\s*\|\s*%\s*{\s*\[char\]\(\[convert\]::ToInt32\(\$_,(\d+)\)\)\s*})", 
+                        powershell_script
+                    )
+                    if complex_pattern:
+                        split_pattern = complex_pattern.group(3)
+                        base = complex_pattern.group(4)
+                        transformation_graph[target_var].append({
+                            "source": var_name,
+                            "operation": "split_and_convert",
+                            "split_pattern": split_pattern,
+                            "base": int(base)
+                        })
+                        continue
+    
+    # Process the transformations in order
+    processed_order = []
+    visited = set()
+    
+    def process_dependencies(node):
+        if node in visited:
+            return
+        visited.add(node)
+        for dep in transformation_graph[node]:
+            process_dependencies(dep["source"])
+        processed_order.append(node)
+    
+    for var_name in variables:
+        process_dependencies(var_name)
+    
+    # Now apply the transformations in the correct order
+    for var_name in processed_order:
+        for transformation in transformation_graph[var_name]:
+            source_var = transformation["source"]
+            operation = transformation["operation"]
+            
+            if operation == "direct_assignment":
+                processed_variables[var_name]["current"] = processed_variables[source_var]["current"]
+                processed_variables[var_name]["transformations"].append(
+                    f"Assigned directly from ${source_var}"
+                )
+            
+            elif operation == "split":
+                try:
+                    pattern = transformation["pattern"]
+                    source_value = processed_variables[source_var]["current"]
+                    result = re.split(pattern, source_value)
+                    processed_variables[var_name]["current"] = result
+                    processed_variables[var_name]["transformations"].append(
+                        f"Split from ${source_var} using pattern '{pattern}'"
+                    )
+                except Exception as e:
+                    processed_variables[var_name]["transformations"].append(
+                        f"Failed to apply split from ${source_var}: {str(e)}"
+                    )
+            
+            elif operation == "split_and_convert":
+                try:
+                    split_pattern = transformation["split_pattern"]
+                    base = transformation["base"]
+                    source_value = processed_variables[source_var]["current"]
+                    
+                    # Handle the specific pattern from your file
+                    if split_pattern == "(?<=\\G..)":
+                        # Split into pairs and convert from hex
+                        hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
+                        chars = []
+                        for pair in hex_pairs:
+                            if pair:  # Ensure we have a non-empty string
+                                try:
+                                    char_code = int(pair, base)
+                                    chars.append(chr(char_code))
+                                except ValueError:
+                                    chars.append(pair)  # Keep original if conversion fails
+                        
+                        result = ''.join(chars)
+                        processed_variables[var_name]["current"] = result
+                        processed_variables[var_name]["transformations"].append(
+                            f"Split from ${source_var} into pairs, converted from base {base} to characters, and joined"
+                        )
+                    else:
+                        # Handle other patterns
+                        parts = re.split(split_pattern, source_value)
+                        chars = []
+                        for part in parts:
+                            if part:  # Ensure we have a non-empty string
+                                try:
+                                    char_code = int(part, base)
+                                    chars.append(chr(char_code))
+                                except ValueError:
+                                    chars.append(part)  # Keep original if conversion fails
+                        
+                        result = ''.join(chars)
+                        processed_variables[var_name]["current"] = result
+                        processed_variables[var_name]["transformations"].append(
+                            f"Split from ${source_var} using pattern '{split_pattern}', converted from base {base} to characters, and joined"
+                        )
+                except Exception as e:
+                    processed_variables[var_name]["transformations"].append(
+                        f"Failed to apply split and convert from ${source_var}: {str(e)}"
+                    )
+    
+    return processed_variables
+
 def check_mitre_attack_techniques(powershell_script):
     """Check for common MITRE ATT&CK techniques"""
     techniques = []
@@ -1022,6 +1175,85 @@ def analyze_powershell(powershell_script):
         else:
             print(f"{Fore.RED}{decoded_script}{Style.RESET_ALL}")
             return  # Exit if decoding failed
+    
+        # Extract variables
+    variables = extract_variables(powershell_script)
+    
+    # Process variable references and transformations
+    processed_variables = process_variable_references(variables, powershell_script)
+    
+    # Add a specific check for your example:
+    # Look specifically for the pattern in your uploaded file
+    specific_pattern = re.search(
+        r"\$(\w+)\s*=\s*\(\$(\w+)\s*-split\s*'(?<=\\G\.\.)'\s*\|\s*%\s*{\s*\[char\]\(\[convert\]::ToInt32\(\$_,(\d+)\)\)\s*}\s*\)\s*-join\s*['\"](.*?)['\"]",
+        powershell_script
+    )
+    
+    if specific_pattern:
+        target_var = specific_pattern.group(1)  # cjmsTifRH
+        source_var = specific_pattern.group(2)  # hyHScEf
+        base = int(specific_pattern.group(3))   # 16
+        join_char = specific_pattern.group(4)   # ''
+        
+        if source_var in variables:
+            try:
+                source_value = variables[source_var]
+                # Split into pairs and convert from hex
+                hex_pairs = [source_value[i:i+2] for i in range(0, len(source_value), 2)]
+                chars = []
+                for pair in hex_pairs:
+                    if pair:  # Ensure we have a non-empty string
+                        try:
+                            char_code = int(pair, base)
+                            chars.append(chr(char_code))
+                        except ValueError:
+                            chars.append(pair)  # Keep original if conversion fails
+                
+                result = join_char.join(chars)
+                
+                # Update the processed variables
+                if target_var in processed_variables:
+                    processed_variables[target_var]["current"] = result
+                    processed_variables[target_var]["transformations"].append(
+                        f"Special pattern: Split ${source_var} into pairs, converted from base {base} to characters, and joined with '{join_char}'"
+                    )
+                else:
+                    processed_variables[target_var] = {
+                        "original": variables.get(target_var, ""),
+                        "current": result,
+                        "transformations": [
+                            f"Special pattern: Split ${source_var} into pairs, converted from base {base} to characters, and joined with '{join_char}'"
+                        ]
+                    }
+                
+                # If this variable is later executed, show its content
+                if re.search(rf"&\s*\${target_var}", powershell_script):
+                    print(f"\n{Fore.RED}{Style.BRIGHT}WARNING: Variable ${target_var} appears to be executed!{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}Content of ${target_var} that will be executed:{Style.RESET_ALL}")
+                    print(f"{result}")
+            except Exception as e:
+                print(f"{Fore.RED}Error processing special pattern: {str(e)}{Style.RESET_ALL}")
+    
+    # Display the processed variables
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Processed Variables:{Style.RESET_ALL}")
+    for var_name, info in processed_variables.items():
+        print(f"{Fore.CYAN}Variable: ${var_name}")
+        print(f"{Fore.YELLOW}  Original Value: {info['original']}")
+        print(f"{Fore.GREEN}  Processed Value: {info['current']}")
+        for step in info['transformations']:
+            print(f"{Fore.MAGENTA}    - {step}")
+        print()
+    
+    # Try to reconstruct the final deobfuscated script
+    final_script = powershell_script
+    for var_name, info in processed_variables.items():
+        if isinstance(info["current"], str):
+            # Replace the variable with its processed value
+            pattern = rf"\${re.escape(var_name)}\b"
+            final_script = re.sub(pattern, f"'{info['current']}'", final_script)
+    
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}Reconstructed Script:{Style.RESET_ALL}")
+    print(final_script)
         
         # Handle complex obfuscation
     complex_deobfuscation = decode_complex_powershell(powershell_script)

@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Incident Response specific
+output/
+logs/
+*.log
+*.json
+*.csv
+*.html
+*.xml
+
+# Sensitive data
+*.key
+*.pem
+*.p12
+*.pfx
+config/secrets.yaml
+config/credentials.yaml
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# AWS
+.aws/
+aws-credentials
+
+# Kubernetes
+kubeconfig
+.kube/
+
+# Docker
+.docker/
+
+# Backup files
+*.bak
+*.backup
+*_backup.*
+
+# Large files
+*.iso
+*.img
+*.vmdk
+*.vdi
+
+# Test files
+test_*
+*_test.*
+tests/output/
+
+# Documentation build
+docs/_build/
+site/

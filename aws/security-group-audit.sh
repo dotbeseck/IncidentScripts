@@ -56,4 +56,4 @@ for region in $regions; do
     done <<< "$security_groups"
 done
 
-echo "SDonezo"
+echo "Done"

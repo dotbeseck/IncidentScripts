@@ -34,6 +34,9 @@ class ForensicSnapshot:
         except ClientError as e:
             logger.error(f"Error getting regions: {e}")
             return []
+        except Exception as e:
+            logger.error(f"Unexpected error getting regions: {e}")
+            return []
 
     def find_instance_region(self, instance_id):
         """Find which region an instance is in"""

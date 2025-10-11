@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 def run_command(command):
     try:
         result = subprocess.run(command, capture_output=True, text=True, shell=True, timeout=60)
+        if result.returncode != 0:
+            return f"Command failed with return code {result.returncode}: {result.stderr}"
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
         return "Command timed out after 60 seconds"

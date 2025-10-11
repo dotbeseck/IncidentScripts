@@ -62,10 +62,7 @@ cd IncidentScripts
 pip install -r requirements.txt
 
 # Make scripts executable (Linux/macOS)
-chmod +x *.sh
-
-# Run setup script
-./setup.sh
+chmod +x aws/*.sh kubernetes/*.sh
 ```
 
 ### Manual Setup
@@ -82,28 +79,34 @@ kubectl config set-context your-context
 
 ## 🗂 Tool Categories
 
-### 🔐 AWS Forensics
-- **`aws-forensic-snapshot.py`** - Create and share EBS snapshots for forensic analysis
-- **`aws-sg-audit.sh`** - Audit security groups for open ports
-- **`aws-windows-instances.sh`** - Discover running Windows instances
+### 🔐 AWS Forensics (`aws/`)
+- **`forensic-snapshot.py`** - Create and share EBS snapshots for forensic analysis
+- **`security-group-audit.sh`** - Audit security groups for open ports
+- **`windows-instances.sh`** - Discover running Windows instances
 
-### ☸️ Kubernetes Analysis
-- **`k8sparser11.py`** - Parse Kubernetes audit logs for security concerns
-- **`kubectlIR-script.sh`** - Comprehensive Kubernetes incident response data collection
-- **`kubectlIR.sh`** - Basic Kubernetes data gathering
+### ☸️ Kubernetes Analysis (`kubernetes/`)
+- **`audit-parser.py`** - Parse Kubernetes audit logs for security concerns
+- **`incident-response.sh`** - Comprehensive Kubernetes incident response data collection
+- **`basic-collector.sh`** - Basic Kubernetes data gathering
+- **`security-scan.py`** - Comprehensive Kubernetes security assessment
+- **`rbac-analyzer.py`** - Deep RBAC analysis and privilege escalation detection
+- **`network-policy-audit.py`** - Network security policy analysis
 
-### 💻 System Analysis
-- **`mac_os_incident_response_script.py`** - macOS system forensics
-- **`integrated_mac_os_docker_incident_response_script.py`** - macOS with Docker analysis
-- **`windows-incident-response-script.ps1`** - Windows system forensics
+### 💻 System Analysis (`system-analysis/`)
+- **`macos/incident-response.py`** - macOS system forensics
+- **`macos/security-audit.py`** - macOS security assessment (RTR-compatible)
+- **`macos/process-forensics.py`** - macOS process analysis and anomaly detection
+- **`macos/docker-integrated.py`** - macOS with Docker analysis
+- **`windows/incident-response.ps1`** - Windows system forensics
+- **`docker/macos-docker.py`** - Docker container analysis
 
-### 🦠 Malware Analysis
-- **`powersheller.py`** - Advanced PowerShell script analysis with MITRE ATT&CK mapping
-- **`powershell_transform.py`** - PowerShell deobfuscation and transformation
+### 🦠 Malware Analysis (`malware-analysis/`)
+- **`powershell-analyzer.py`** - Advanced PowerShell script analysis with MITRE ATT&CK mapping
+- **`powershell-deobfuscator.py`** - PowerShell deobfuscation and transformation
 - **`recursive-deobfuscator.py`** - Multi-layer Python malware deobfuscation
 
-### 🌐 Network Analysis
-- **`ip-finder-whois-lookup.py`** - IP address analysis and WHOIS lookups
+### 🌐 Network Analysis (`network/`)
+- **`ip-analyzer.py`** - IP address analysis and WHOIS lookups
 
 ## 📖 Usage Examples
 

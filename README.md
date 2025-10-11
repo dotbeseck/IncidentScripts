@@ -113,46 +113,64 @@ kubectl config set-context your-context
 ### AWS Forensic Snapshot
 ```bash
 # Create snapshots for specific instances
-python aws-forensic-snapshot.py -t 123456789012 -f instances.txt
+python aws/forensic-snapshot.py -t 123456789012 -f instances.txt
 
 # Create snapshots for individual instances
-python aws-forensic-snapshot.py -t 123456789012 i-1234567890abcdef0 i-0987654321fedcba0
+python aws/forensic-snapshot.py -t 123456789012 i-1234567890abcdef0 i-0987654321fedcba0
 ```
 
-### Kubernetes Audit Log Analysis
+### Kubernetes Security Analysis
 ```bash
-# Parse audit logs for security concerns
-python k8sparser11.py audit.log -p
+# Comprehensive security scan
+python kubernetes/security-scan.py
 
-# Export results to JSON
-python k8sparser11.py audit.log -j
+# RBAC analysis
+python kubernetes/rbac-analyzer.py
+
+# Network policy audit
+python kubernetes/network-policy-audit.py
+
+# Parse audit logs for security concerns
+python kubernetes/audit-parser.py audit.log -p
+
+# Kubernetes incident response
+./kubernetes/incident-response.sh -n production -o /tmp/ir_data
+```
+
+### macOS Security Analysis (CrowdStrike RTR Compatible)
+```bash
+# Comprehensive security audit
+python system-analysis/macos/security-audit.py
+
+# Process forensics analysis
+python system-analysis/macos/process-forensics.py
+
+# Standard incident response
+python system-analysis/macos/incident-response.py
 ```
 
 ### PowerShell Malware Analysis
 ```bash
 # Analyze suspicious PowerShell script
-python powersheller.py suspicious_script.ps1
+python malware-analysis/powershell-analyzer.py suspicious_script.ps1
 
 # Deobfuscate encoded PowerShell
-python powershell_transform.py encoded_script.ps1
+python malware-analysis/powershell-deobfuscator.py encoded_script.ps1
 ```
 
 ### System Incident Response
 ```bash
-# macOS system analysis
-python mac_os_incident_response_script.py
-
 # Windows system analysis (PowerShell)
-.\windows-incident-response-script.ps1
+.\system-analysis\windows\incident-response.ps1
 
-# Kubernetes incident response
-./kubectlIR-script.sh -n production -o /tmp/ir_data
+# Docker analysis
+python system-analysis/docker/macos-docker.py
 ```
 
 ### Network Analysis
 ```bash
 # Analyze IP addresses from log files
-python ip-finder-whois-lookup.py network_logs.csv results.csv
+python network/ip-analyzer.py network_logs.csv results.csv
 ```
 
 ## 🔧 Configuration
@@ -185,19 +203,21 @@ export K8S_NAMESPACE=production
 ### JSON Output
 Most tools support JSON output for integration with SIEM systems:
 ```bash
-python mac_os_incident_response_script.py --format json --output incident_data.json
+python system-analysis/macos/incident-response.py --format json --output incident_data.json
+python kubernetes/security-scan.py > security_scan.json
+python kubernetes/rbac-analyzer.py > rbac_analysis.json
 ```
 
 ### CSV Output
 Network and audit tools can export to CSV:
 ```bash
-python ip-finder-whois-lookup.py input.csv --output results.csv
+python network/ip-analyzer.py input.csv --output results.csv
 ```
 
 ### HTML Reports
 Some tools generate HTML reports for easy viewing:
 ```bash
-python k8sparser11.py audit.log --html report.html
+python kubernetes/audit-parser.py audit.log --html report.html
 ```
 
 ## 🚨 Security Notice

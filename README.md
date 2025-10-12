@@ -1,5 +1,6 @@
-# Incident Response Scripts Collection
 
+# Incident Response Scripts Collection
+100% ai generated readme, i cant organize thisnwell 
 A comprehensive collection of incident response and forensic analysis tools for AWS, Kubernetes, system analysis, and malware investigation.
 
 ## 📋 Table of Contents

@@ -115,28 +115,28 @@ OUTPUT_DIR="security-reports/${CLUSTER_NAME}_${TIMESTAMP}"
 
 mkdir -p $OUTPUT_DIR
 
-echo "🔍 Starting full cluster security analysis..."
+echo " Starting full cluster security analysis..."
 echo "Cluster: $CLUSTER_NAME"
 echo "Output Directory: $OUTPUT_DIR"
 echo "=========================================="
 
 # 1. Comprehensive Security Scan
-echo "📊 Running comprehensive security scan..."
+echo " Running comprehensive security scan..."
 python3 kubernetes/security-scan.py > $OUTPUT_DIR/security_scan.json
-echo "✅ Security scan complete"
+echo " Security scan complete"
 
 # 2. RBAC Analysis
-echo "🔐 Running RBAC analysis..."
+echo " Running RBAC analysis..."
 python3 kubernetes/rbac-analyzer.py > $OUTPUT_DIR/rbac_analysis.json
-echo "✅ RBAC analysis complete"
+echo " RBAC analysis complete"
 
 # 3. Network Policy Audit
-echo "🌐 Running network policy audit..."
+echo " Running network policy audit..."
 python3 kubernetes/network-policy-audit.py > $OUTPUT_DIR/network_audit.json
-echo "✅ Network policy audit complete"
+echo " Network policy audit complete"
 
 # 4. Generate summary report
-echo "📋 Generating summary report..."
+echo " Generating summary report..."
 cat > $OUTPUT_DIR/summary.md << EOF
 # Security Analysis Summary
 
@@ -173,8 +173,8 @@ $(jq -r '.findings[] | select(.severity == "CRITICAL") | "- " + .description' $O
 4. Schedule review of LOW findings during next maintenance window
 EOF
 
-echo "🎉 Full cluster security analysis complete!"
-echo "📁 Results saved to: $OUTPUT_DIR"
+echo " Full cluster security analysis complete!"
+echo " Results saved to: $OUTPUT_DIR"
 ```
 
 #### Execute Full Cluster Scan
@@ -196,7 +196,7 @@ OUTPUT_DIR="security-reports/${NAMESPACE}_${TIMESTAMP}"
 
 mkdir -p $OUTPUT_DIR
 
-echo "🔍 Analyzing namespace: $NAMESPACE"
+echo " Analyzing namespace: $NAMESPACE"
 echo "Output Directory: $OUTPUT_DIR"
 echo "=========================================="
 
@@ -204,18 +204,18 @@ echo "=========================================="
 export KUBECTL_NAMESPACE=$NAMESPACE
 
 # Run security scan for specific namespace
-echo "📊 Running security scan for namespace: $NAMESPACE"
+echo " Running security scan for namespace: $NAMESPACE"
 python3 kubernetes/security-scan.py > $OUTPUT_DIR/security_scan.json
 
 # Run RBAC analysis (still cluster-wide for RBAC)
-echo "🔐 Running RBAC analysis..."
+echo " Running RBAC analysis..."
 python3 kubernetes/rbac-analyzer.py > $OUTPUT_DIR/rbac_analysis.json
 
 # Run network policy audit
-echo "🌐 Running network policy audit..."
+echo " Running network policy audit..."
 python3 kubernetes/network-policy-audit.py > $OUTPUT_DIR/network_audit.json
 
-echo "✅ Namespace analysis complete: $OUTPUT_DIR"
+echo " Namespace analysis complete: $OUTPUT_DIR"
 ```
 
 #### Execute Namespace Scan
@@ -252,25 +252,25 @@ OUTPUT_DIR="security-reports/node_${NODE_NAME}_${TIMESTAMP}"
 
 mkdir -p $OUTPUT_DIR
 
-echo "🔍 Analyzing node: $NODE_NAME"
+echo " Analyzing node: $NODE_NAME"
 echo "Output Directory: $OUTPUT_DIR"
 echo "=========================================="
 
 # Get node information
-echo "📋 Collecting node information..."
+echo " Collecting node information..."
 kubectl describe node $NODE_NAME > $OUTPUT_DIR/node_description.txt
 kubectl get node $NODE_NAME -o yaml > $OUTPUT_DIR/node_yaml.yaml
 
 # Get pods running on this node
-echo "📊 Collecting pods on node..."
+echo " Collecting pods on node..."
 kubectl get pods --all-namespaces --field-selector spec.nodeName=$NODE_NAME -o yaml > $OUTPUT_DIR/node_pods.yaml
 
 # Run security scan (filtered for this node)
-echo "🔍 Running security scan for node pods..."
+echo " Running security scan for node pods..."
 python3 kubernetes/security-scan.py > $OUTPUT_DIR/security_scan.json
 
 # Filter results for this node
-echo "🔍 Filtering results for node: $NODE_NAME"
+echo " Filtering results for node: $NODE_NAME"
 jq --arg node "$NODE_NAME" '
   .security_checks.pod_security.issues = (
     .security_checks.pod_security.issues | 
@@ -278,7 +278,7 @@ jq --arg node "$NODE_NAME" '
   )
 ' $OUTPUT_DIR/security_scan.json > $OUTPUT_DIR/security_scan_filtered.json
 
-echo "✅ Node analysis complete: $OUTPUT_DIR"
+echo " Node analysis complete: $OUTPUT_DIR"
 ```
 
 #### Execute Node Scan
@@ -310,41 +310,41 @@ OUTPUT_DIR="security-reports/${RESOURCE_TYPE}_${NAMESPACE}_${TIMESTAMP}"
 
 mkdir -p $OUTPUT_DIR
 
-echo "🔍 Analyzing resource type: $RESOURCE_TYPE"
+echo " Analyzing resource type: $RESOURCE_TYPE"
 echo "Namespace: $NAMESPACE"
 echo "Output Directory: $OUTPUT_DIR"
 echo "=========================================="
 
 # Get resource information
 if [ "$NAMESPACE" = "all" ]; then
-    echo "📊 Collecting all $RESOURCE_TYPE..."
+    echo " Collecting all $RESOURCE_TYPE..."
     kubectl get $RESOURCE_TYPE --all-namespaces -o yaml > $OUTPUT_DIR/${RESOURCE_TYPE}_all.yaml
 else
-    echo "📊 Collecting $RESOURCE_TYPE in namespace: $NAMESPACE"
+    echo " Collecting $RESOURCE_TYPE in namespace: $NAMESPACE"
     kubectl get $RESOURCE_TYPE -n $NAMESPACE -o yaml > $OUTPUT_DIR/${RESOURCE_TYPE}_${NAMESPACE}.yaml
 fi
 
 # Run appropriate security scan
 case $RESOURCE_TYPE in
     "pods")
-        echo "🔍 Running pod security analysis..."
+        echo " Running pod security analysis..."
         python3 kubernetes/security-scan.py > $OUTPUT_DIR/security_scan.json
         ;;
     "services")
-        echo "🌐 Running network policy audit..."
+        echo " Running network policy audit..."
         python3 kubernetes/network-policy-audit.py > $OUTPUT_DIR/network_audit.json
         ;;
     "roles"|"clusterroles"|"rolebindings"|"clusterrolebindings")
-        echo "🔐 Running RBAC analysis..."
+        echo " Running RBAC analysis..."
         python3 kubernetes/rbac-analyzer.py > $OUTPUT_DIR/rbac_analysis.json
         ;;
     *)
-        echo "🔍 Running comprehensive security scan..."
+        echo " Running comprehensive security scan..."
         python3 kubernetes/security-scan.py > $OUTPUT_DIR/security_scan.json
         ;;
 esac
 
-echo "✅ Resource analysis complete: $OUTPUT_DIR"
+echo " Resource analysis complete: $OUTPUT_DIR"
 ```
 
 #### Execute Resource Scan
@@ -466,10 +466,10 @@ jobs:
       run: |
         CRITICAL_COUNT=$(jq '[.findings[] | select(.severity == "CRITICAL")] | length' security_scan.json)
         if [ $CRITICAL_COUNT -gt 0 ]; then
-          echo "❌ Critical security findings detected: $CRITICAL_COUNT"
+          echo " Critical security findings detected: $CRITICAL_COUNT"
           exit 1
         else
-          echo "✅ No critical security findings"
+          echo " No critical security findings"
         fi
     
     - name: Upload Security Reports
@@ -504,7 +504,7 @@ k8s-security-scan:
     - |
       CRITICAL_COUNT=$(jq '[.findings[] | select(.severity == "CRITICAL")] | length' security_scan.json)
       if [ $CRITICAL_COUNT -gt 0 ]; then
-        echo "❌ Critical security findings detected: $CRITICAL_COUNT"
+        echo " Critical security findings detected: $CRITICAL_COUNT"
         exit 1
       fi
   artifacts:
@@ -532,13 +532,13 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p $BASE_OUTPUT_DIR
 
-echo "🔍 Starting multi-cluster security analysis..."
+echo " Starting multi-cluster security analysis..."
 echo "Clusters: ${CLUSTERS[*]}"
 echo "Output Directory: $BASE_OUTPUT_DIR"
 echo "=========================================="
 
 for cluster in "${CLUSTERS[@]}"; do
-    echo "📊 Analyzing cluster: $cluster"
+    echo " Analyzing cluster: $cluster"
     
     # Switch to cluster context
     kubectl config use-context $cluster
@@ -552,14 +552,14 @@ for cluster in "${CLUSTERS[@]}"; do
         python3 kubernetes/rbac-analyzer.py > $CLUSTER_OUTPUT_DIR/rbac_analysis.json
         python3 kubernetes/network-policy-audit.py > $CLUSTER_OUTPUT_DIR/network_audit.json
         
-        echo "✅ Cluster $cluster analysis complete"
+        echo " Cluster $cluster analysis complete"
     else
-        echo "❌ Failed to connect to cluster: $cluster"
+        echo " Failed to connect to cluster: $cluster"
     fi
 done
 
 # Generate multi-cluster summary
-echo "📋 Generating multi-cluster summary..."
+echo " Generating multi-cluster summary..."
 cat > $BASE_OUTPUT_DIR/multi_cluster_summary.md << EOF
 # Multi-Cluster Security Analysis Summary
 
@@ -583,8 +583,8 @@ EOF
     fi
 done
 
-echo "🎉 Multi-cluster security analysis complete!"
-echo "📁 Results saved to: $BASE_OUTPUT_DIR"
+echo " Multi-cluster security analysis complete!"
+echo " Results saved to: $BASE_OUTPUT_DIR"
 ```
 
 ## Troubleshooting
@@ -659,19 +659,19 @@ kubectl get pods -o yaml | head -20
 ### Successful Execution
 ```bash
 $ ./full-cluster-security-scan.sh
-🔍 Starting full cluster security analysis...
+ Starting full cluster security analysis...
 Cluster: production-cluster
 Output Directory: security-reports/production-cluster_20241210_143022
 ==========================================
-📊 Running comprehensive security scan...
-✅ Security scan complete
-🔐 Running RBAC analysis...
-✅ RBAC analysis complete
-🌐 Running network policy audit...
-✅ Network policy audit complete
-📋 Generating summary report...
-🎉 Full cluster security analysis complete!
-📁 Results saved to: security-reports/production-cluster_20241210_143022
+ Running comprehensive security scan...
+ Security scan complete
+ Running RBAC analysis...
+ RBAC analysis complete
+ Running network policy audit...
+ Network policy audit complete
+ Generating summary report...
+ Full cluster security analysis complete!
+ Results saved to: security-reports/production-cluster_20241210_143022
 ```
 
 ### Critical Findings Alert
@@ -682,4 +682,4 @@ Mon Dec 10 02:03:45 UTC 2024: ALERT: 2 critical findings detected!
 Mon Dec 10 02:03:45 UTC 2024: Daily security scan complete
 ```
 
-This comprehensive guide covers all the different ways you can run the Kubernetes security scripts against various targets and scenarios! 🚀
+This comprehensive guide covers all the different ways you can run the Kubernetes security scripts against various targets and scenarios! 

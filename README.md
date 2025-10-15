@@ -4,7 +4,7 @@
  
 A comprehensive collection of incident response and forensic analysis tools for AWS, Kubernetes, system analysis, and malware investigation.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
@@ -15,7 +15,7 @@ A comprehensive collection of incident response and forensic analysis tools for 
 - [Security Notice](#security-notice)
 - [Troubleshooting](#troubleshooting)
 
-## 🔍 Overview
+## Overview
 
 This repository contains a curated set of incident response tools designed to help security professionals quickly gather forensic evidence, analyze system states, and investigate security incidents across multiple platforms and environments.
 
@@ -28,7 +28,7 @@ This repository contains a curated set of incident response tools designed to he
 - **Network forensics**: IP analysis, WHOIS lookups
 - **Automated data collection**: System information, logs, processes
 
-## 🛠 Prerequisites
+## Prerequisites
 
 ### System Requirements
 - **Python 3.7+** (for Python scripts)
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 - Cluster admin or appropriate RBAC permissions
 - Access to audit logs (if using audit parser)
 
-## 📦 Installation
+## Installation
 
 ### Quick Setup
 ```bash
@@ -79,14 +79,14 @@ aws configure
 kubectl config set-context your-context
 ```
 
-## 🗂 Tool Categories
+## Tool Categories
 
-### 🔐 AWS Forensics (`aws/`)
+### AWS Forensics (`aws/`)
 - **`forensic-snapshot.py`** - Create and share EBS snapshots for forensic analysis
 - **`security-group-audit.sh`** - Audit security groups for open ports
 - **`windows-instances.sh`** - Discover running Windows instances
 
-### ☸️ Kubernetes Analysis (`kubernetes/`)
+### Kubernetes Analysis (`kubernetes/`)
 - **`audit-parser.py`** - Parse Kubernetes audit logs for security concerns
 - **`incident-response.sh`** - Comprehensive Kubernetes incident response data collection
 - **`basic-collector.sh`** - Basic Kubernetes data gathering
@@ -94,7 +94,7 @@ kubectl config set-context your-context
 - **`rbac-analyzer.py`** - Deep RBAC analysis and privilege escalation detection
 - **`network-policy-audit.py`** - Network security policy analysis
 
-### 💻 System Analysis (`system-analysis/`)
+### System Analysis (`system-analysis/`)
 - **`macos/incident-response.py`** - macOS system forensics
 - **`macos/security-audit.py`** - macOS security assessment (RTR-compatible)
 - **`macos/process-forensics.py`** - macOS process analysis and anomaly detection
@@ -102,15 +102,15 @@ kubectl config set-context your-context
 - **`windows/incident-response.ps1`** - Windows system forensics
 - **`docker/macos-docker.py`** - Docker container analysis
 
-### 🦠 Malware Analysis (`malware-analysis/`)
+### Malware Analysis (`malware-analysis/`)
 - **`powershell-analyzer.py`** - Advanced PowerShell script analysis with MITRE ATT&CK mapping
 - **`powershell-deobfuscator.py`** - PowerShell deobfuscation and transformation
 - **`recursive-deobfuscator.py`** - Multi-layer Python malware deobfuscation
 
-### 🌐 Network Analysis (`network/`)
+### Network Analysis (`network/`)
 - **`ip-analyzer.py`** - IP address analysis and WHOIS lookups
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### AWS Forensic Snapshot
 ```bash
@@ -175,7 +175,7 @@ python system-analysis/docker/macos-docker.py
 python network/ip-analyzer.py network_logs.csv results.csv
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### AWS Configuration
 Create a `config.yaml` file for AWS tools:
@@ -200,7 +200,7 @@ export KUBECONFIG=/path/to/your/kubeconfig
 export K8S_NAMESPACE=production
 ```
 
-## 📊 Output Formats
+## Output Formats
 
 ### JSON Output
 Most tools support JSON output for integration with SIEM systems:
@@ -222,9 +222,9 @@ Some tools generate HTML reports for easy viewing:
 python kubernetes/audit-parser.py audit.log --html report.html
 ```
 
-## 🚨 Security Notice
+## Security Notice
 
-⚠️ **IMPORTANT SECURITY CONSIDERATIONS**
+**IMPORTANT SECURITY CONSIDERATIONS**
 
 - These tools are designed for authorized incident response activities only
 - Ensure you have proper authorization before running any forensic tools
@@ -240,7 +240,7 @@ python kubernetes/audit-parser.py audit.log --html report.html
 - Use read-only operations when possible
 - Validate tool outputs before making decisions
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -294,7 +294,7 @@ python --version
 - Review system logs for permission issues
 - Monitor AWS CloudTrail for API call logs
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these guidelines:
 
@@ -317,17 +317,17 @@ python -m pytest tests/
 flake8 *.py
 ```
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📞 Support
+## Support
 
 - **Issues**: Report bugs and request features via [GitHub Issues](https://github.com/yourusername/IncidentScripts/issues)
 - **Discussions**: Join community discussions in [GitHub Discussions](https://github.com/yourusername/IncidentScripts/discussions)
 - **Security**: Report security issues privately via email
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - AWS Security team for forensic best practices
 - Kubernetes community for audit log insights
@@ -336,4 +336,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**⚠️ Disclaimer**: These tools are provided for educational and authorized incident response purposes only. Users are responsible for ensuring compliance with applicable laws and regulations.
+**Disclaimer**: These tools are provided for educational and authorized incident response purposes only. Users are responsible for ensuring compliance with applicable laws and regulations.

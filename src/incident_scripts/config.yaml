@@ -1,0 +1,61 @@
+# Incident Scripts Configuration
+
+aws:
+  default_region: us-east-1
+  snapshot_tags:
+    - Key: Purpose
+      Value: IncidentResponse
+    - Key: CreatedBy
+      Value: SecurityTeam
+
+kubernetes:
+  suspicious_ports:
+    - 22
+    - 23
+    - 3389
+    - 445
+    - 135
+    - 137
+    - 138
+    - 139
+    - 161
+    - 162
+    - 389
+    - 636
+    - 1433
+    - 1521
+    - 3306
+    - 5432
+    - 6379
+    - 27017
+    - 28017
+    - 9443
+  sensitive_paths:
+    - /proc
+    - /sys
+    - /var/run/docker.sock
+    - /var/run/crio.sock
+    - /etc/kubernetes
+    - /var/lib/kubelet
+    - /var/lib/etcd
+    - /etc/cni
+    - /opt/cni
+    - /var/lib/docker
+    - /root/.kube
+    - /root/.docker
+    - /home/admin/.kube
+    - /dev/mem
+    - /dev/kmem
+    - /dev/ports
+    - /.dockerenv
+    - /etc/shadow
+    - /etc/passwd
+    - /etc/ssh
+    - /etc/ssl
+    - /etc/kubernetes/pki
+
+malware:
+  mitre_mappings:
+    # Credential Access
+    'mimikatz|dump|Get-Credential|ConvertTo-SecureString': 'T1003 - OS Credential Dumping'
+    'Get-ADUser|Get-ADGroupMember': 'T1087 - Account Discovery'

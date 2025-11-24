@@ -5,12 +5,10 @@ import argparse
 import time
 import sys
 from botocore.exceptions import ClientError
-import logging
+from incident_scripts.utils.logger import setup_logger
 
 # Set up logging
-logging.basicConfig(level=logging.INFO,
-                   format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class ForensicSnapshot:
     def __init__(self, target_account_id, source_account_id=None):

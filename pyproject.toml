@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "incident-scripts"
+version = "0.1.0"
+description = "A collection of incident response and forensic analysis tools."
+readme = "README.md"
+authors = [
+  { name = "Security Team", email = "security@example.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "boto3",
+    "requests",
+    "beautifulsoup4",
+    "colorama",
+    "kubernetes",
+]
+
+[project.scripts]
+incident-response = "incident_scripts.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

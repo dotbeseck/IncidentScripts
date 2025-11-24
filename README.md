@@ -25,7 +25,7 @@ This repository contains a curated set of incident response tools designed to he
 
 ### Install Package
 ```bash
-git clone https://github.com/yourusername/IncidentScripts.git
+git clone https://github.com/dotbeseck/IncidentScripts.git
 cd IncidentScripts
 pip install .
 ```
